@@ -1,10 +1,10 @@
 package edu.uees.tutorias;
 
+import edu.uees.tutorias.builder.ReservaBuilder;
 import edu.uees.tutorias.domain.Asignatura;
 import edu.uees.tutorias.domain.Docente;
 import edu.uees.tutorias.domain.Estudiante;
 import edu.uees.tutorias.domain.HorarioTutoria;
-import edu.uees.tutorias.domain.ModalidadTutoria;
 import edu.uees.tutorias.domain.Reserva;
 import edu.uees.tutorias.factory.CreadorNotificador;
 import edu.uees.tutorias.factory.CreadorNotificadorConsola;
@@ -18,7 +18,6 @@ import edu.uees.tutorias.persistence.RepositorioReservasEnMemoria;
 import edu.uees.tutorias.service.ServicioReservas;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -63,36 +62,8 @@ public final class App {
         System.out.println("Estado final del horario: " + horario.getEstado());
 
         demostrarCanalesDeNotificacion(estudiante.getCorreo());
-        demostrarConstructorTelescopico(docente, asignatura, estudiante);
-    }
-
-    /**
-     * Crea una reserva con todos sus datos opcionales usando el
-     * constructor completo de {@link Reserva}.
-     *
-     * <p>La llamada resultante es el problema que documenta Ae2: nueve
-     * argumentos posicionales, tres String seguidos que pueden
-     * intercambiarse sin que el compilador avise, un {@code null}
-     * explicito para el campo que no aplica y ninguna garantia de que la
-     * modalidad y el enlace sean coherentes entre si.</p>
-     */
-    private static void demostrarConstructorTelescopico(Docente docente, Asignatura asignatura,
-                                                        Estudiante estudiante) {
-        HorarioTutoria horarioVirtual = new HorarioTutoria(
-                "H002", docente, asignatura,
-                LocalDate.of(2026, 9, 8), LocalTime.of(15, 0), LocalTime.of(16, 0));
-
-        Reserva reservaVirtual = new Reserva(
-                "R002", estudiante, horarioVirtual, LocalDateTime.now(),
-                ModalidadTutoria.VIRTUAL, "Consulta sobre normalizacion",
-                "https://meet.uees.edu.ec/tutoria-h002", "El estudiante enviara su avance", 30);
-
-        System.out.println();
-        System.out.println("### Reserva creada con el constructor completo ###");
-        System.out.println("Modalidad: " + reservaVirtual.getModalidad());
-        System.out.println("Motivo: " + reservaVirtual.getMotivo());
-        System.out.println("Enlace: " + reservaVirtual.getEnlaceVirtual().orElse("no aplica"));
-        System.out.println("Recordatorio: " + reservaVirtual.getRecordatorioMinutosAntes() + " min antes");
+        demostrarBuilderDeReservas(servicioReservas, repositorioHorarios,
+                docente, asignatura, estudiante);
     }
 
     /**
@@ -113,6 +84,55 @@ public final class App {
             creador.enviarNotificacion(destinatario, "Recordatorio de tutoria",
                     "Recuerda tu tutoria programada.");
         }
+    }
+
+    /**
+     * Construye dos reservas con configuraciones distintas usando el
+     * mismo {@link ReservaBuilder}.
+     *
+     * <p>La primera se queda con todos los valores por defecto
+     * (presencial, motivo generico, recordatorio de 60 minutos); la
+     * segunda es una tutoria virtual con enlace, motivo, observaciones y
+     * recordatorio propios. Ninguna de las dos llamadas necesita pasar
+     * {@code null} ni recordar el orden de nueve argumentos.</p>
+     */
+    private static void demostrarBuilderDeReservas(ServicioReservas servicioReservas,
+                                                   RepositorioHorarios repositorioHorarios,
+                                                   Docente docente, Asignatura asignatura,
+                                                   Estudiante estudiante) {
+        HorarioTutoria horarioPresencial = new HorarioTutoria(
+                "H002", docente, asignatura,
+                LocalDate.of(2026, 9, 8), LocalTime.of(15, 0), LocalTime.of(16, 0));
+        HorarioTutoria horarioVirtual = new HorarioTutoria(
+                "H003", docente, asignatura,
+                LocalDate.of(2026, 9, 9), LocalTime.of(9, 0), LocalTime.of(10, 0));
+        repositorioHorarios.guardar(horarioPresencial);
+        repositorioHorarios.guardar(horarioVirtual);
+
+        System.out.println();
+        System.out.println("### Builder: dos configuraciones de reserva ###");
+
+        Reserva reservaMinima = servicioReservas.crearReserva(estudiante, horarioPresencial.getId());
+        imprimirReserva("Configuracion minima (solo obligatorios)", reservaMinima);
+
+        Reserva reservaCompleta = servicioReservas.crearReserva(
+                new ReservaBuilder()
+                        .conEstudiante(estudiante)
+                        .virtualCon("https://meet.uees.edu.ec/tutoria-h003")
+                        .conMotivo("Consulta sobre normalizacion")
+                        .conObservaciones("El estudiante enviara su avance antes de la sesion")
+                        .conRecordatorioDe(30),
+                horarioVirtual.getId());
+        imprimirReserva("Configuracion completa (tutoria virtual)", reservaCompleta);
+    }
+
+    private static void imprimirReserva(String titulo, Reserva reserva) {
+        System.out.println("- " + titulo);
+        System.out.println("  Modalidad: " + reserva.getModalidad());
+        System.out.println("  Motivo: " + reserva.getMotivo());
+        System.out.println("  Enlace: " + reserva.getEnlaceVirtual().orElse("no aplica"));
+        System.out.println("  Observaciones: " + reserva.getObservaciones().orElse("sin observaciones"));
+        System.out.println("  Recordatorio: " + reserva.getRecordatorioMinutosAntes() + " min antes");
     }
 
     private App() {

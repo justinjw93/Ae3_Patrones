@@ -1,11 +1,13 @@
 package edu.uees.tutorias.service;
 
+import edu.uees.tutorias.builder.ReservaBuilder;
 import edu.uees.tutorias.domain.Asignatura;
 import edu.uees.tutorias.domain.Docente;
 import edu.uees.tutorias.domain.EstadoHorario;
 import edu.uees.tutorias.domain.EstadoReserva;
 import edu.uees.tutorias.domain.Estudiante;
 import edu.uees.tutorias.domain.HorarioTutoria;
+import edu.uees.tutorias.domain.ModalidadTutoria;
 import edu.uees.tutorias.domain.Reserva;
 import edu.uees.tutorias.notification.Notificador;
 import edu.uees.tutorias.persistence.RepositorioHorarios;
@@ -108,6 +110,23 @@ class ServicioReservasTest {
 
         assertThrows(IllegalStateException.class,
                 () -> servicioReservas.confirmarReserva(reserva.getId()));
+    }
+
+    @Test
+    void elServicioAceptaUnaReservaPreconfiguradaConElBuilder() {
+        Reserva reserva = servicioReservas.crearReserva(
+                new ReservaBuilder()
+                        .conEstudiante(estudiante)
+                        .virtualCon("https://meet.uees.edu.ec/tutoria-h001")
+                        .conMotivo("Consulta sobre indices")
+                        .conRecordatorioDe(15),
+                horario.getId());
+
+        assertEquals(ModalidadTutoria.VIRTUAL, reserva.getModalidad());
+        assertEquals("Consulta sobre indices", reserva.getMotivo());
+        assertEquals(15, reserva.getRecordatorioMinutosAntes());
+        assertEquals(EstadoHorario.RESERVADO, horario.getEstado());
+        assertEquals(1, notificador.mensajes.size());
     }
 
     /** Doble de prueba de {@link Notificador}: registra a quien se notifico. */

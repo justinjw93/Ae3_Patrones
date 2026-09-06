@@ -1,5 +1,7 @@
 package edu.uees.tutorias.domain;
 
+import edu.uees.tutorias.builder.ReservaBuilder;
+
 import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.Optional;
@@ -15,17 +17,13 @@ import java.util.Optional;
  * pregunta de analisis "¿quien deberia cambiar el estado de una
  * reserva?": la propia Reserva, nunca un componente externo.</p>
  *
- * <p><b>Problema abierto en Ae2.</b> Al incorporar los datos que la
- * coordinacion academica pidio registrar (modalidad, motivo, enlace de
- * conexion, observaciones y recordatorio), la construccion de una
- * Reserva paso de cuatro a nueve parametros y aparecieron
- * constructores telescopicos: varias sobrecargas encadenadas que
- * rellenan valores por defecto. El resultado es una llamada ilegible
- * ({@code new Reserva(id, est, hor, fecha, VIRTUAL, "Consulta", null,
- * null, 60)}), con tres String consecutivos que el compilador no puede
- * distinguir si se intercambian, y sin un lugar unico donde validar la
- * regla "toda tutoria virtual necesita enlace". Este es el problema que
- * resuelve el patron Builder en el siguiente paso.</p>
+ * <p><b>Construccion (Ae2).</b> Los nueve datos entre obligatorios y
+ * opcionales que hoy describen una reserva se armaban con constructores
+ * telescopicos, lo que producia llamadas ilegibles, {@code null}
+ * explicitos y ningun punto unico de validacion. Esa responsabilidad
+ * paso al patron Builder: el unico constructor disponible recibe un
+ * {@link ReservaBuilder} ya validado, de modo que no existe forma de
+ * crear una reserva incompleta o incoherente.</p>
  */
 public class Reserva {
 
@@ -47,41 +45,31 @@ public class Reserva {
     private final String observaciones;
     private final int recordatorioMinutosAntes;
 
-    /** Constructor telescopico 1: solo los datos obligatorios. */
-    public Reserva(String id, Estudiante estudiante, HorarioTutoria horario,
-                    LocalDateTime fechaCreacion) {
-        this(id, estudiante, horario, fechaCreacion,
-                ModalidadTutoria.PRESENCIAL, MOTIVO_POR_DEFECTO, null, null,
-                RECORDATORIO_POR_DEFECTO_MINUTOS);
-    }
-
-    /** Constructor telescopico 2: agrega modalidad y motivo. */
-    public Reserva(String id, Estudiante estudiante, HorarioTutoria horario,
-                    LocalDateTime fechaCreacion, ModalidadTutoria modalidad, String motivo) {
-        this(id, estudiante, horario, fechaCreacion, modalidad, motivo, null, null,
-                RECORDATORIO_POR_DEFECTO_MINUTOS);
-    }
-
     /**
-     * Constructor telescopico 3: todos los campos.
+     * Unico constructor de Reserva: toma los datos ya reunidos por un
+     * {@link ReservaBuilder}.
      *
-     * <p>Nueve parametros, tres String consecutivos intercambiables sin
-     * error de compilacion y ninguna validacion de la regla que une
-     * modalidad y enlace. Es exactamente el punto de partida que
-     * justifica introducir un Builder.</p>
+     * <p>Vuelve a invocar {@link ReservaBuilder#validar()} antes de
+     * copiar nada, para que ninguna reserva pueda construirse saltandose
+     * las reglas aunque se instancie el builder por fuera de
+     * {@link ReservaBuilder#construir()}. Solo despues de validar ocupa
+     * el horario, de modo que una construccion rechazada no deja el
+     * horario bloqueado.</p>
      */
-    public Reserva(String id, Estudiante estudiante, HorarioTutoria horario,
-                    LocalDateTime fechaCreacion, ModalidadTutoria modalidad, String motivo,
-                    String enlaceVirtual, String observaciones, int recordatorioMinutosAntes) {
-        this.id = Objects.requireNonNull(id);
-        this.estudiante = Objects.requireNonNull(estudiante);
-        this.horario = Objects.requireNonNull(horario);
-        this.fechaCreacion = Objects.requireNonNull(fechaCreacion);
-        this.modalidad = Objects.requireNonNull(modalidad);
-        this.motivo = motivo;
-        this.enlaceVirtual = enlaceVirtual;
-        this.observaciones = observaciones;
-        this.recordatorioMinutosAntes = recordatorioMinutosAntes;
+    public Reserva(ReservaBuilder builder) {
+        Objects.requireNonNull(builder, "La reserva se construye a partir de un ReservaBuilder.");
+        builder.validar();
+
+        this.id = builder.getId();
+        this.estudiante = builder.getEstudiante();
+        this.horario = builder.getHorario();
+        this.fechaCreacion = builder.getFechaCreacion();
+        this.modalidad = builder.getModalidad();
+        this.motivo = builder.getMotivo();
+        this.enlaceVirtual = builder.getEnlaceVirtual();
+        this.observaciones = builder.getObservaciones();
+        this.recordatorioMinutosAntes = builder.getRecordatorioMinutosAntes();
+
         this.horario.marcarReservado();
         this.estado = EstadoReserva.PENDIENTE;
     }

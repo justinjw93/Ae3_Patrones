@@ -1,5 +1,6 @@
 package edu.uees.tutorias.service;
 
+import edu.uees.tutorias.builder.ReservaBuilder;
 import edu.uees.tutorias.domain.Estudiante;
 import edu.uees.tutorias.domain.HorarioTutoria;
 import edu.uees.tutorias.domain.Reserva;
@@ -7,10 +8,8 @@ import edu.uees.tutorias.notification.Notificador;
 import edu.uees.tutorias.persistence.RepositorioHorarios;
 import edu.uees.tutorias.persistence.RepositorioReservas;
 
-import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.UUID;
 
 /**
  * Orquesta los casos de uso de reservas: crear, confirmar, cancelar y
@@ -44,18 +43,36 @@ public class ServicioReservas {
         this.notificador = Objects.requireNonNull(notificador);
     }
 
+    /**
+     * Crea una reserva con los valores por defecto: modalidad
+     * presencial, motivo generico y recordatorio de una hora.
+     */
     public Reserva crearReserva(Estudiante estudiante, String idHorario) {
+        return crearReserva(new ReservaBuilder().conEstudiante(estudiante), idHorario);
+    }
+
+    /**
+     * Crea una reserva a partir de un builder que el cliente ya
+     * configuro (modalidad, motivo, observaciones o recordatorio).
+     *
+     * <p>El servicio solo completa el horario, que es el dato que
+     * depende del repositorio, y delega en el builder la validacion de
+     * la configuracion. Asi el servicio no crece un parametro cada vez
+     * que la reserva gana un campo opcional.</p>
+     */
+    public Reserva crearReserva(ReservaBuilder builder, String idHorario) {
+        Objects.requireNonNull(builder, "El builder de la reserva no puede ser nulo");
         HorarioTutoria horario = obtenerHorario(idHorario);
 
-        Reserva reserva = new Reserva(
-                UUID.randomUUID().toString(), estudiante, horario, LocalDateTime.now());
+        Reserva reserva = builder.conHorario(horario).construir();
         repositorioReservas.guardar(reserva);
 
         notificador.notificar(
                 horario.getDocente().getCorreo(),
                 "Nueva reserva de tutoria",
-                estudiante.nombreCompleto() + " reservo el horario " + horario.getId()
-                        + " de " + horario.getAsignatura());
+                reserva.getEstudiante().nombreCompleto() + " reservo el horario "
+                        + horario.getId() + " de " + horario.getAsignatura()
+                        + " (" + reserva.getModalidad() + ": " + reserva.getMotivo() + ")");
 
         return reserva;
     }
