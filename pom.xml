@@ -6,14 +6,15 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>edu.uees</groupId>
-    <artifactId>sistema-tutorias</artifactId>
+    <artifactId>semana3-patrones</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
 
-    <name>Sistema de gestion de tutorias</name>
+    <name>Semana 3 - Patrones de diseno aplicados al Sistema de gestion de tutorias</name>
     <description>
-        Modelo orientado a objetos del Sistema de gestion de tutorias academicas.
-        Actividad 5 | Ae1 - Diseno orientado a objetos de un sistema.
+        Implementacion comparativa de los patrones Factory Method y Builder sobre el
+        Sistema de gestion de tutorias academicas, construido en la Semana 2 (Ae1).
+        Ae2 | Implementacion comparativa de patrones de diseno.
         Diseno de Software (UCOM0310) - Universidad Espiritu Santo.
     </description>
 
@@ -33,7 +34,7 @@
     </dependencies>
 
     <build>
-        <finalName>sistema-tutorias</finalName>
+        <finalName>semana3-patrones</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
