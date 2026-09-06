@@ -5,8 +5,11 @@ import edu.uees.tutorias.domain.Docente;
 import edu.uees.tutorias.domain.Estudiante;
 import edu.uees.tutorias.domain.HorarioTutoria;
 import edu.uees.tutorias.domain.Reserva;
+import edu.uees.tutorias.factory.CreadorNotificador;
+import edu.uees.tutorias.factory.CreadorNotificadorConsola;
+import edu.uees.tutorias.factory.CreadorNotificadorCorreo;
+import edu.uees.tutorias.factory.CreadorNotificadorLog;
 import edu.uees.tutorias.notification.Notificador;
-import edu.uees.tutorias.notification.NotificadorConsola;
 import edu.uees.tutorias.persistence.RepositorioHorarios;
 import edu.uees.tutorias.persistence.RepositorioHorariosEnMemoria;
 import edu.uees.tutorias.persistence.RepositorioReservas;
@@ -15,18 +18,25 @@ import edu.uees.tutorias.service.ServicioReservas;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 
 /**
  * Punto de entrada de demostracion: arma las dependencias del sistema
  * (composition root) y ejecuta un flujo tipico de reserva, confirmacion
  * y cancelacion de una tutoria.
+ *
+ * <p>Desde Ae2 el canal de notificacion ya no se instancia con un
+ * {@code new} de clase concreta: se obtiene de un
+ * {@link CreadorNotificador}, de modo que cambiar de canal es cambiar de
+ * ConcreteCreator y nada mas.</p>
  */
 public final class App {
 
     public static void main(String[] args) {
         RepositorioReservas repositorioReservas = new RepositorioReservasEnMemoria();
         RepositorioHorarios repositorioHorarios = new RepositorioHorariosEnMemoria();
-        Notificador notificador = new NotificadorConsola();
+        CreadorNotificador creadorNotificador = new CreadorNotificadorCorreo();
+        Notificador notificador = creadorNotificador.crearNotificador();
         ServicioReservas servicioReservas =
                 new ServicioReservas(repositorioReservas, repositorioHorarios, notificador);
 
@@ -49,6 +59,28 @@ public final class App {
 
         System.out.println("Estado final de la reserva: " + reserva.getEstado());
         System.out.println("Estado final del horario: " + horario.getEstado());
+
+        demostrarCanalesDeNotificacion(estudiante.getCorreo());
+    }
+
+    /**
+     * Recorre los ConcreteCreators disponibles enviando el mismo aviso
+     * por cada canal. El bucle trabaja unicamente contra el tipo
+     * {@link CreadorNotificador}: no menciona ninguna clase concreta de
+     * notificador, que es justamente lo que aporta el Factory Method.
+     */
+    private static void demostrarCanalesDeNotificacion(String destinatario) {
+        List<CreadorNotificador> creadores = List.of(
+                new CreadorNotificadorConsola(),
+                new CreadorNotificadorLog(),
+                new CreadorNotificadorCorreo());
+
+        System.out.println();
+        System.out.println("### Factory Method: mismo aviso por cada canal disponible ###");
+        for (CreadorNotificador creador : creadores) {
+            creador.enviarNotificacion(destinatario, "Recordatorio de tutoria",
+                    "Recuerda tu tutoria programada.");
+        }
     }
 
     private App() {
