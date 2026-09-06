@@ -12,6 +12,8 @@ import java.time.LocalDateTime;
  * {@code new ServicioReservas(repo, repoHorarios, new NotificadorLog())}
  * para que el servicio use este canal en lugar de otro, porque solo
  * conoce el contrato {@link Notificador}.</p>
+ *
+ * <p><b>Rol en el patron Factory Method (Ae2):</b> ConcreteProduct que registra el mensaje en un canal de auditoria.</p>
  */
 public class NotificadorLog implements Notificador {
 

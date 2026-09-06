@@ -6,6 +6,8 @@ package edu.uees.tutorias.notification;
  * proveedor real de correo electronico (por ejemplo SMTP); representa el
  * mismo rol dentro del contrato y puede reemplazarse sin tocar
  * {@code ServicioReservas}.
+ *
+ * <p><b>Rol en el patron Factory Method (Ae2):</b> ConcreteProduct que entrega el mensaje por la salida estandar.</p>
  */
 public class NotificadorConsola implements Notificador {
 
