@@ -1,6 +1,6 @@
 # Implementación comparativa de patrones de diseño
 
-Factory Method y Builder aplicados al Sistema de gestión de tutorías — Ae3 (UCOM0310, Semana 3)
+Factory Method y Builder aplicados al Sistema de gestión de tutorías — Ae3 (UCOM0310, Semana 4)
 
 **Autor:** Justin Arreaga  
 **Repositorio:** https://github.com/justinjw93/Ae3_Patrones

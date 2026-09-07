@@ -1,6 +1,6 @@
 # Implementación comparativa de patrones de diseño
 
-Universidad Espíritu Santo · Diseño de Software (UCOM0310) · Ae3 — Implementación comparativa de patrones de diseño · Semana 3, PEL 4 - 2026
+Universidad Espíritu Santo · Diseño de Software (UCOM0310) · Ae3 — Implementación comparativa de patrones de diseño · Semana 4, PEL 4 - 2026
 
 Proyecto: **Justin Arreaga**  
 Repositorio: **https://github.com/justinjw93/Ae3_Patrones**
@@ -78,7 +78,7 @@ mvn compile exec:java -Dexec.mainClass="edu.uees.tutorias.App"
 ## Estructura del proyecto
 
 ```text
-semana3-patrones/
+semana4-patrones/
 ├── README.md
 ├── pom.xml
 ├── docs/

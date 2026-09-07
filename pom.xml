@@ -10,7 +10,7 @@
     <version>1.0.0</version>
     <packaging>jar</packaging>
 
-    <name>Semana 3 - Patrones de diseno aplicados al Sistema de gestion de tutorias</name>
+    <name>Semana 4 - Patrones de diseno aplicados al Sistema de gestion de tutorias</name>
     <description>
         Implementacion comparativa de los patrones Factory Method y Builder sobre el
         Sistema de gestion de tutorias academicas, construido en la Semana 2 (Ae1).
