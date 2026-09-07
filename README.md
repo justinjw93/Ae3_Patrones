@@ -2,7 +2,8 @@
 
 Universidad Espíritu Santo · Diseño de Software (UCOM0310) · Ae2 — Implementación comparativa de patrones de diseño · Semana 3, PEL 4 - 2026
 
-Proyecto: **Justin Arreaga**
+Proyecto: **Justin Arreaga**  
+Repositorio: **https://github.com/justinjw93/Ae2_Patrones**
 
 ## Propósito
 
