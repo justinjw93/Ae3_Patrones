@@ -1,9 +1,9 @@
 # Implementación comparativa de patrones de diseño
 
-Factory Method y Builder aplicados al Sistema de gestión de tutorías — Ae2 (UCOM0310, Semana 3)
+Factory Method y Builder aplicados al Sistema de gestión de tutorías — Ae3 (UCOM0310, Semana 3)
 
 **Autor:** Justin Arreaga  
-**Repositorio:** https://github.com/justinjw93/Ae2_Patrones
+**Repositorio:** https://github.com/justinjw93/Ae3_Patrones
 
 Este documento continúa el modelo orientado a objetos entregado en Ae1 ([`docs/analisis.md`](analisis.md)). El sistema no se rehízo: los dos patrones se introdujeron sobre el diseño existente, resolviendo problemas que ese mismo diseño dejó abiertos.
 

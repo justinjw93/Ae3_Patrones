@@ -1,5 +1,5 @@
 @startuml factory-method
-title Factory Method aplicado a los canales de notificacion (Ae2)
+title Factory Method aplicado a los canales de notificacion (Ae3)
 
 skinparam classAttributeIconSize 0
 hide circle

@@ -1,9 +1,9 @@
 # Implementación comparativa de patrones de diseño
 
-Universidad Espíritu Santo · Diseño de Software (UCOM0310) · Ae2 — Implementación comparativa de patrones de diseño · Semana 3, PEL 4 - 2026
+Universidad Espíritu Santo · Diseño de Software (UCOM0310) · Ae3 — Implementación comparativa de patrones de diseño · Semana 3, PEL 4 - 2026
 
 Proyecto: **Justin Arreaga**  
-Repositorio: **https://github.com/justinjw93/Ae2_Patrones**
+Repositorio: **https://github.com/justinjw93/Ae3_Patrones**
 
 ## Propósito
 
@@ -83,7 +83,7 @@ semana3-patrones/
 ├── pom.xml
 ├── docs/
 │   ├── analisis.md            # análisis de dominio, cohesión/acoplamiento y SOLID (Ae1)
-│   ├── patrones.md            # problemas, solución y comparación de patrones (Ae2)
+│   ├── patrones.md            # problemas, solución y comparación de patrones (Ae3)
 │   ├── factory-method.puml / .png
 │   ├── builder.puml / .png
 │   └── modelo-clases.puml / .png

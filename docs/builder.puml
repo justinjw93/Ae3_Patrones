@@ -1,5 +1,5 @@
 @startuml builder
-title Builder aplicado a la construccion de una Reserva (Ae2)
+title Builder aplicado a la construccion de una Reserva (Ae3)
 
 skinparam classAttributeIconSize 0
 hide circle
