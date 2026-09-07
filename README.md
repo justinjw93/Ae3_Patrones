@@ -1,56 +1,63 @@
-# Sistema de gestión de tutorías
+# Implementación comparativa de patrones de diseño
 
-Universidad Espíritu Santo · Diseño de Software (UCOM0310) · Actividad 5 | Ae1 — Diseño orientado a objetos de un sistema · Semana 2, PEL 4 - 2026
+Universidad Espíritu Santo · Diseño de Software (UCOM0310) · Ae2 — Implementación comparativa de patrones de diseño · Semana 3, PEL 4 - 2026
 
 Proyecto: **Justin Arreaga**
 
 ## Propósito
 
-Modelo orientado a objetos inicial del Sistema de gestión de tutorías académicas entre estudiantes y docentes, aplicando principios de orientación a objetos, modelado UML, cohesión y acoplamiento, y principios SOLID.
+Implementar y comparar **Factory Method** y **Builder** sobre problemas concretos del Sistema de gestión de tutorías, justificando qué problema resuelve cada patrón, cómo se representa en UML y cómo se traduce a Java.
 
-## Descripción del problema
+Este repositorio parte del modelo orientado a objetos entregado en Ae1 (Semana 2) y conserva su historial: los patrones se aplican **sobre** ese diseño, no lo reemplazan.
 
-La UEES requiere un sistema que permita a los docentes publicar horarios de tutoría disponibles, a los estudiantes consultar esos horarios y reservarlos, evitar que un mismo horario sea reservado por más de un estudiante, permitir cancelaciones y reprogramaciones, notificar a los usuarios ante cada cambio relevante, y mantener un registro consistente del estado de cada reserva — sin acoplar la lógica de negocio a una tecnología específica de persistencia o de notificación.
+## Problemas que resuelve cada patrón
 
-## Clases principales y responsabilidades
-
-| Clase / interfaz | Paquete | Responsabilidad |
+| Patrón | Problema del código anterior | Solución |
 |---|---|---|
-| `Usuario` (abstracta) | `domain` | Datos comunes de cualquier persona del sistema |
-| `Estudiante`, `Docente` | `domain` | Especializaciones de `Usuario` |
-| `Asignatura` | `domain` | Materia asociada a un horario de tutoría |
-| `HorarioTutoria` | `domain` | Bloque de tutoría y su disponibilidad (protege su propio estado) |
-| `Reserva` | `domain` | Ciclo de vida de una solicitud de tutoría (protege su propio estado) |
-| `RepositorioReservas`, `RepositorioHorarios` | `persistence` | Contratos de persistencia (implementados en memoria en esta iteración) |
-| `Notificador` | `notification` | Contrato de envío de notificaciones (`NotificadorConsola`, `NotificadorLog`) |
-| `ServicioReservas` | `service` | Orquesta crear, confirmar, cancelar y reprogramar reservas |
-| `App` | raíz | *Composition root*: arma las dependencias y ejecuta un flujo de demostración |
+| **Factory Method** | `App` elegía el canal escribiendo `new NotificadorConsola()`: el cliente quedaba amarrado a una clase concreta y la configuración propia de cada canal (remitente, número de origen, límite de caracteres) se filtraba hacia él. | Jerarquía `CreadorNotificador` → cada ConcreteCreator decide qué `Notificador` construir y con qué configuración. |
+| **Builder** | Al registrar modalidad, motivo, enlace, observaciones y recordatorio, `Reserva` pasó de 4 a 9 datos: constructores telescópicos, tres `String` consecutivos intercambiables sin error de compilación, `null` obligatorios y ningún punto único de validación. | `ReservaBuilder` con Fluent API, valores por defecto y `validar()` como única puerta de construcción. |
 
-Detalle completo (atributos, comportamientos y colaboraciones) en [`docs/analisis.md`](docs/analisis.md).
+Desarrollo completo, con código, UML y tabla comparativa, en **[`docs/patrones.md`](docs/patrones.md)**.
 
-## Decisiones de diseño relevantes
+## Parte A · Factory Method
 
-- Ninguna clase externa cambia el estado de `Reserva` o `HorarioTutoria` directamente: cada una protege sus propias transiciones válidas (por ejemplo, `Reserva.cancelar()` libera automáticamente el horario asociado).
-- `ServicioReservas` no conoce implementaciones concretas de persistencia ni de notificación: las recibe por constructor a través de interfaces (`RepositorioReservas`, `RepositorioHorarios`, `Notificador`).
-- La persistencia se implementó en memoria (`RepositorioReservasEnMemoria`, `RepositorioHorariosEnMemoria`) para esta primera iteración, pensada para sustituirse por una implementación real sin tocar la lógica de negocio.
-- Se agregó una segunda implementación de `Notificador` (`NotificadorLog`) sin modificar `ServicioReservas`, como evidencia concreta de extensibilidad.
+| Rol GoF | Clases |
+|---|---|
+| Product | `Notificador` |
+| ConcreteProduct | `NotificadorConsola`, `NotificadorLog`, `NotificadorCorreo`, `NotificadorSms` |
+| Creator | `CreadorNotificador` (abstracta) |
+| ConcreteCreator | `CreadorNotificadorConsola`, `CreadorNotificadorLog`, `CreadorNotificadorCorreo`, `CreadorNotificadorSms` |
+| Client | `App` |
 
-Justificación ampliada de cohesión y acoplamiento en [`docs/analisis.md`](docs/analisis.md).
+El Creator declara la operación de fábrica `crearNotificador()` y define sobre ella la operación estable `enviarNotificacion(...)`, que identifica el canal y delega el envío al producto.
 
-## Principios SOLID aplicados
+**Evidencia de extensibilidad:** el canal SMS se agregó después de tener el patrón funcionando y su commit (`feat: agregar nueva variante de notificacion`) contiene únicamente archivos nuevos. No cambió el contrato, ni el Creator, ni los creadores previos, ni `ServicioReservas`.
 
-- **DIP** — `ServicioReservas` depende de `RepositorioReservas`, `RepositorioHorarios` y `Notificador` (interfaces), no de sus implementaciones.
-- **SRP** — `HorarioTutoria` y `Reserva` tienen, cada una, una sola razón para cambiar.
-- **OCP** — `NotificadorLog` se agregó sin modificar `ServicioReservas` ni `Notificador`.
-- **ISP** — `RepositorioReservas` y `RepositorioHorarios` son interfaces separadas en lugar de un único contrato mezclado.
+## Parte B · Builder
 
-Justificación con evidencia técnica puntual en [`docs/analisis.md`](docs/analisis.md).
+- **Obligatorios:** `estudiante`, `horario`.
+- **Con valor por defecto:** `id` (UUID), `fechaCreacion` (`now()`), `modalidad` (`PRESENCIAL`), `motivo` (`"Tutoria general"`), `recordatorioMinutosAntes` (`60`).
+- **Opcionales sin defecto:** `enlaceVirtual`, `observaciones`.
 
-## Diagrama UML
+```java
+Reserva reserva = new ReservaBuilder()
+        .conEstudiante(estudiante)
+        .conHorario(horario)
+        .virtualCon("https://meet.uees.edu.ec/tutoria-h003")
+        .conMotivo("Consulta sobre normalizacion")
+        .conRecordatorioDe(30)
+        .construir();
+```
 
-![Diagrama de clases](docs/modelo-clases.png)
+`Reserva` quedó con un solo constructor, que recibe el builder y vuelve a invocar `validar()` antes de copiar los datos: no existe forma de crear una reserva incompleta o incoherente. El horario se ocupa después de validar, de modo que una construcción rechazada no deja el bloque bloqueado.
 
-Fuente editable: [`docs/modelo-clases.puml`](docs/modelo-clases.puml).
+## Diagramas UML
+
+| Diagrama | Fuente |
+|---|---|
+| ![Factory Method](docs/factory-method.png) | [`docs/factory-method.puml`](docs/factory-method.puml) |
+| ![Builder](docs/builder.png) | [`docs/builder.puml`](docs/builder.puml) |
+| ![Modelo general](docs/modelo-clases.png) | [`docs/modelo-clases.puml`](docs/modelo-clases.puml) |
 
 ## Requisitos
 
@@ -65,26 +72,39 @@ mvn clean test
 mvn compile exec:java -Dexec.mainClass="edu.uees.tutorias.App"
 ```
 
+`App` ejecuta el flujo de reserva heredado de Ae1 y, a continuación, las dos demostraciones de la actividad: el mismo aviso enviado por cada canal a través de sus ConcreteCreators, y las dos configuraciones de `Reserva` construidas con el builder.
+
 ## Estructura del proyecto
 
 ```text
-sistema-tutorias/
+semana3-patrones/
 ├── README.md
 ├── pom.xml
 ├── docs/
-│   ├── analisis.md
-│   ├── modelo-clases.puml
-│   └── modelo-clases.png
+│   ├── analisis.md            # análisis de dominio, cohesión/acoplamiento y SOLID (Ae1)
+│   ├── patrones.md            # problemas, solución y comparación de patrones (Ae2)
+│   ├── factory-method.puml / .png
+│   ├── builder.puml / .png
+│   └── modelo-clases.puml / .png
 └── src/
     ├── main/java/edu/uees/tutorias/
     │   ├── App.java
+    │   ├── builder/           # ReservaBuilder
+    │   ├── factory/           # CreadorNotificador y ConcreteCreators
     │   ├── domain/
     │   ├── service/
     │   ├── persistence/
-    │   └── notification/
-    └── test/java/edu/uees/tutorias/service/
+    │   └── notification/      # Notificador y ConcreteProducts
+    └── test/java/edu/uees/tutorias/
+        ├── builder/
+        ├── factory/
+        └── service/
 ```
+
+## Continuidad con Ae1
+
+El diseño de la semana anterior (clases, responsabilidades, cohesión/acoplamiento y principios SOLID) está documentado en [`docs/analisis.md`](docs/analisis.md) y sigue vigente. Los patrones se apoyaron en él: el Factory Method encontró su lugar porque `Notificador` ya era una interfaz, y el Builder porque `Reserva` ya protegía su propio estado. Ninguno obligó a modificar `ServicioReservas`, los repositorios ni las reglas de transición de estado.
 
 ## Declaración de uso de inteligencia artificial
 
-Me apoyé en el modelo Claude para agilizar la organización del caso de estudio, la generación preliminar del código en Java, el diseño de diagramas UML, la documentación en el README. Todo el código fue revisado, modificado e inspeccionado mediante ejecución y compilación (`javac`/JDK 26), garantizando el cumplimiento estricto de los requerimientos y asegurando mi total comprensión de las decisiones técnicas tomadas.
+Para esta actividad utilicé herramientas de inteligencia artificial. Me apoyé en el modelo Claude para agilizar la organización del caso, la generación preliminar del código en Java, el diseño de los diagramas UML y la documentación técnica. Revisé, probé y adapté el contenido generado: todo el código fue inspeccionado y verificado mediante compilación y ejecución de pruebas con Maven y JDK 21, y puedo explicar y justificar el código y las decisiones de diseño presentadas.
