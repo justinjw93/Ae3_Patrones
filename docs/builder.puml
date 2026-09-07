@@ -1,0 +1,94 @@
+@startuml builder
+title Builder aplicado a la construccion de una Reserva (Ae2)
+
+skinparam classAttributeIconSize 0
+hide circle
+skinparam class {
+    BackgroundColor White
+    ArrowColor #444444
+    BorderColor #444444
+}
+
+package "edu.uees.tutorias.builder" {
+
+    class ReservaBuilder <<Builder>> {
+        - id: String = UUID
+        - estudiante: Estudiante
+        - horario: HorarioTutoria
+        - fechaCreacion: LocalDateTime = now()
+        - modalidad: ModalidadTutoria = PRESENCIAL
+        - motivo: String = "Tutoria general"
+        - enlaceVirtual: String
+        - observaciones: String
+        - recordatorioMinutosAntes: int = 60
+        + conEstudiante(e: Estudiante): ReservaBuilder
+        + conHorario(h: HorarioTutoria): ReservaBuilder
+        + conId(id: String): ReservaBuilder
+        + creadaEn(f: LocalDateTime): ReservaBuilder
+        + presencial(): ReservaBuilder
+        + virtualCon(enlace: String): ReservaBuilder
+        + conMotivo(m: String): ReservaBuilder
+        + conObservaciones(o: String): ReservaBuilder
+        + conRecordatorioDe(minutos: int): ReservaBuilder
+        + validar(): void
+        + construir(): Reserva
+    }
+}
+
+package "edu.uees.tutorias.domain" {
+
+    class Reserva <<Product>> {
+        - id: String
+        - fechaCreacion: LocalDateTime
+        - estado: EstadoReserva
+        - modalidad: ModalidadTutoria
+        - motivo: String
+        - enlaceVirtual: String
+        - observaciones: String
+        - recordatorioMinutosAntes: int
+        + Reserva(builder: ReservaBuilder)
+        + confirmar(): void
+        + cancelar(): void
+        + marcarRealizada(): void
+        + reprogramar(nuevoHorario: HorarioTutoria): void
+    }
+
+    enum ModalidadTutoria {
+        PRESENCIAL
+        VIRTUAL
+    }
+
+    class Estudiante
+    class HorarioTutoria
+}
+
+package "edu.uees.tutorias.service" {
+    class ServicioReservas <<Director / Client>> {
+        + crearReserva(e: Estudiante, idHorario: String): Reserva
+        + crearReserva(b: ReservaBuilder, idHorario: String): Reserva
+    }
+}
+
+ReservaBuilder ..> Reserva : construir() crea >
+Reserva ..> ReservaBuilder : lee los datos validados >
+Reserva "0..*" -- "1" Estudiante : solicitada por >
+Reserva "1" -- "1" HorarioTutoria : ocupa >
+Reserva -- ModalidadTutoria
+ReservaBuilder -- ModalidadTutoria
+ServicioReservas ..> ReservaBuilder : configura y delega >
+
+note right of ReservaBuilder
+  Obligatorios: estudiante y horario.
+  Con valor por defecto: id, fechaCreacion,
+  modalidad, motivo y recordatorio.
+  validar() aplica tambien las reglas cruzadas
+  (VIRTUAL exige enlace, PRESENCIAL no lo admite).
+end note
+
+note bottom of Reserva
+  Unico constructor: recibe el builder
+  y vuelve a invocar validar() antes de
+  copiar los datos y ocupar el horario.
+end note
+
+@enduml

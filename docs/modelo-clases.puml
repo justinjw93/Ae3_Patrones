@@ -1,5 +1,5 @@
 @startuml modelo-clases
-title Sistema de gestion de tutorias - Diagrama de clases (Ae1)
+title Sistema de gestion de tutorias - Diagrama de clases general (actualizado en Ae2)
 
 skinparam classAttributeIconSize 0
 hide circle
@@ -59,10 +59,21 @@ package "domain" {
         REALIZADA
     }
 
+    enum ModalidadTutoria {
+        PRESENCIAL
+        VIRTUAL
+    }
+
     class Reserva {
         - id: String
         - fechaCreacion: LocalDateTime
         - estado: EstadoReserva
+        - modalidad: ModalidadTutoria
+        - motivo: String
+        - enlaceVirtual: String
+        - observaciones: String
+        - recordatorioMinutosAntes: int
+        + Reserva(builder: ReservaBuilder)
         + confirmar(): void
         + cancelar(): void
         + marcarRealizada(): void
@@ -78,6 +89,7 @@ package "domain" {
     Reserva "0..*" -- "1" Estudiante : solicitada por >
     Reserva "1" -- "1" HorarioTutoria : ocupa >
     Reserva -- EstadoReserva
+    Reserva -- ModalidadTutoria
 }
 
 package "persistence" {
@@ -124,8 +136,55 @@ package "notification" {
         + notificar(destinatario: String, asunto: String, mensaje: String): void
     }
 
+    class NotificadorCorreo {
+        - remitente: String
+        + notificar(destinatario: String, asunto: String, mensaje: String): void
+    }
+
+    class NotificadorSms {
+        - numeroOrigen: String
+        + notificar(destinatario: String, asunto: String, mensaje: String): void
+    }
+
     NotificadorConsola ..|> Notificador
     NotificadorLog ..|> Notificador
+    NotificadorCorreo ..|> Notificador
+    NotificadorSms ..|> Notificador
+}
+
+package "factory" {
+    abstract class CreadorNotificador {
+        + crearNotificador(): Notificador
+        + nombreCanal(): String
+        + enviarNotificacion(destinatario: String, asunto: String, mensaje: String): void
+    }
+
+    class CreadorNotificadorConsola
+    class CreadorNotificadorLog
+    class CreadorNotificadorCorreo
+    class CreadorNotificadorSms
+
+    CreadorNotificador <|-- CreadorNotificadorConsola
+    CreadorNotificador <|-- CreadorNotificadorLog
+    CreadorNotificador <|-- CreadorNotificadorCorreo
+    CreadorNotificador <|-- CreadorNotificadorSms
+    CreadorNotificador ..> Notificador : crea >
+}
+
+package "builder" {
+    class ReservaBuilder {
+        + conEstudiante(e: Estudiante): ReservaBuilder
+        + conHorario(h: HorarioTutoria): ReservaBuilder
+        + presencial(): ReservaBuilder
+        + virtualCon(enlace: String): ReservaBuilder
+        + conMotivo(m: String): ReservaBuilder
+        + conObservaciones(o: String): ReservaBuilder
+        + conRecordatorioDe(minutos: int): ReservaBuilder
+        + validar(): void
+        + construir(): Reserva
+    }
+
+    ReservaBuilder ..> Reserva : construye >
 }
 
 package "service" {
@@ -134,6 +193,7 @@ package "service" {
         - repositorioHorarios: RepositorioHorarios
         - notificador: Notificador
         + crearReserva(e: Estudiante, idHorario: String): Reserva
+        + crearReserva(b: ReservaBuilder, idHorario: String): Reserva
         + confirmarReserva(idReserva: String): void
         + cancelarReserva(idReserva: String): void
         + reprogramarReserva(idReserva: String, idNuevoHorario: String): void
@@ -142,7 +202,7 @@ package "service" {
     ServicioReservas ..> RepositorioReservas : usa >
     ServicioReservas ..> RepositorioHorarios : usa >
     ServicioReservas ..> Notificador : usa >
-    ServicioReservas ..> Reserva : crea >
+    ServicioReservas ..> ReservaBuilder : configura y delega >
 }
 
 @enduml

@@ -1,0 +1,103 @@
+@startuml factory-method
+title Factory Method aplicado a los canales de notificacion (Ae2)
+
+skinparam classAttributeIconSize 0
+hide circle
+skinparam class {
+    BackgroundColor White
+    ArrowColor #444444
+    BorderColor #444444
+}
+
+package "edu.uees.tutorias.factory" {
+
+    abstract class CreadorNotificador <<Creator>> {
+        + {abstract} crearNotificador(): Notificador
+        + {abstract} nombreCanal(): String
+        + enviarNotificacion(destinatario: String, asunto: String, mensaje: String): void
+    }
+
+    class CreadorNotificadorConsola <<ConcreteCreator>> {
+        + crearNotificador(): Notificador
+        + nombreCanal(): String
+    }
+
+    class CreadorNotificadorLog <<ConcreteCreator>> {
+        + crearNotificador(): Notificador
+        + nombreCanal(): String
+    }
+
+    class CreadorNotificadorCorreo <<ConcreteCreator>> {
+        + crearNotificador(): Notificador
+        + nombreCanal(): String
+    }
+
+    class CreadorNotificadorSms <<ConcreteCreator>> {
+        - numeroOrigen: String
+        + crearNotificador(): Notificador
+        + nombreCanal(): String
+    }
+}
+
+package "edu.uees.tutorias.notification" {
+
+    interface Notificador <<Product>> {
+        + notificar(destinatario: String, asunto: String, mensaje: String): void
+    }
+
+    class NotificadorConsola <<ConcreteProduct>> {
+        + notificar(destinatario: String, asunto: String, mensaje: String): void
+    }
+
+    class NotificadorLog <<ConcreteProduct>> {
+        + notificar(destinatario: String, asunto: String, mensaje: String): void
+    }
+
+    class NotificadorCorreo <<ConcreteProduct>> {
+        - remitente: String
+        + notificar(destinatario: String, asunto: String, mensaje: String): void
+    }
+
+    class NotificadorSms <<ConcreteProduct>> {
+        - numeroOrigen: String
+        + notificar(destinatario: String, asunto: String, mensaje: String): void
+        + componerTexto(asunto: String, mensaje: String): String
+    }
+}
+
+class App <<Client>> {
+    + main(args: String[]): void
+}
+
+CreadorNotificador <|-- CreadorNotificadorConsola
+CreadorNotificador <|-- CreadorNotificadorLog
+CreadorNotificador <|-- CreadorNotificadorCorreo
+CreadorNotificador <|-- CreadorNotificadorSms
+
+Notificador <|.. NotificadorConsola
+Notificador <|.. NotificadorLog
+Notificador <|.. NotificadorCorreo
+Notificador <|.. NotificadorSms
+
+CreadorNotificador ..> Notificador : devuelve y usa >
+CreadorNotificadorConsola ..> NotificadorConsola : crea >
+CreadorNotificadorLog ..> NotificadorLog : crea >
+CreadorNotificadorCorreo ..> NotificadorCorreo : crea >
+CreadorNotificadorSms ..> NotificadorSms : crea >
+
+App ..> CreadorNotificador : solicita el canal >
+
+note bottom of CreadorNotificadorSms
+  Variante agregada despues de
+  tener el patron funcionando:
+  dos archivos nuevos, ningun
+  archivo existente modificado.
+end note
+
+note right of CreadorNotificador
+  enviarNotificacion() es la operacion
+  estable del Creator: se apoya en el
+  producto que fabrique la subclase.
+end note
+
+@enduml
