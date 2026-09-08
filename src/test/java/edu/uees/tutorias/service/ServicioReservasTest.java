@@ -9,7 +9,10 @@ import edu.uees.tutorias.domain.Estudiante;
 import edu.uees.tutorias.domain.HorarioTutoria;
 import edu.uees.tutorias.domain.ModalidadTutoria;
 import edu.uees.tutorias.domain.Reserva;
-import edu.uees.tutorias.notification.Notificador;
+import edu.uees.tutorias.event.EventoReserva;
+import edu.uees.tutorias.event.ObservadorReserva;
+import edu.uees.tutorias.event.PublicadorReservas;
+import edu.uees.tutorias.event.TipoEventoReserva;
 import edu.uees.tutorias.persistence.RepositorioHorarios;
 import edu.uees.tutorias.persistence.RepositorioHorariosEnMemoria;
 import edu.uees.tutorias.persistence.RepositorioReservas;
@@ -33,16 +36,20 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pruebas del servicio de reservas usando implementaciones en memoria e
- * implementaciones falsas de {@link Notificador}. Al depender el
- * servicio de interfaces (DIP) puede probarse por completo sin correo
- * real ni base de datos.
+ * Pruebas del servicio de reservas usando repositorios en memoria y un
+ * observador espia. Al depender el servicio de abstracciones (DIP)
+ * puede probarse por completo sin correo real ni base de datos.
+ *
+ * <p>Desde Ae3 el servicio no notifica: publica hechos. Por eso las
+ * pruebas ya no inspeccionan mensajes enviados, sino los eventos
+ * publicados.</p>
  */
 class ServicioReservasTest {
 
     private RepositorioReservas repositorioReservas;
     private RepositorioHorarios repositorioHorarios;
-    private NotificadorDePrueba notificador;
+    private PublicadorReservas publicador;
+    private ObservadorDePrueba observador;
     private ServicioReservas servicioReservas;
 
     private Docente docente;
@@ -53,8 +60,10 @@ class ServicioReservasTest {
     void setUp() {
         repositorioReservas = new RepositorioReservasEnMemoria();
         repositorioHorarios = new RepositorioHorariosEnMemoria();
-        notificador = new NotificadorDePrueba();
-        servicioReservas = new ServicioReservas(repositorioReservas, repositorioHorarios, notificador);
+        publicador = new PublicadorReservas();
+        observador = new ObservadorDePrueba();
+        publicador.registrar(observador);
+        servicioReservas = new ServicioReservas(repositorioReservas, repositorioHorarios, publicador);
 
         docente = new Docente("D001", "Ana", "Perez", "ana.perez@uees.edu.ec", "Bases de datos");
         Asignatura asignatura = new Asignatura("SIS201", "Bases de datos");
@@ -74,8 +83,9 @@ class ServicioReservasTest {
 
         assertEquals(EstadoReserva.PENDIENTE, reserva.getEstado());
         assertEquals(EstadoHorario.RESERVADO, horario.getEstado());
-        assertEquals(1, notificador.mensajes.size());
-        assertEquals("ana.perez@uees.edu.ec", notificador.mensajes.get(0));
+        assertEquals(1, observador.eventos.size());
+        assertEquals(TipoEventoReserva.CREADA, observador.eventos.get(0).tipo());
+        assertEquals("ana.perez@uees.edu.ec", observador.eventos.get(0).correoDocente());
     }
 
     @Test
@@ -106,7 +116,8 @@ class ServicioReservasTest {
         servicioReservas.confirmarReserva(reserva.getId());
 
         assertEquals(EstadoReserva.CONFIRMADA, reserva.getEstado());
-        assertEquals("justin.arreaga@uees.edu.ec", notificador.mensajes.get(1));
+        assertEquals(TipoEventoReserva.CONFIRMADA, observador.eventos.get(1).tipo());
+        assertEquals("justin.arreaga@uees.edu.ec", observador.eventos.get(1).correoEstudiante());
     }
 
     @Test
@@ -132,13 +143,13 @@ class ServicioReservasTest {
         assertEquals("Consulta sobre indices", reserva.getMotivo());
         assertEquals(15, reserva.getRecordatorioMinutosAntes());
         assertEquals(EstadoHorario.RESERVADO, horario.getEstado());
-        assertEquals(1, notificador.mensajes.size());
+        assertEquals(1, observador.eventos.size());
     }
 
     @Test
     void laPoliticaAnticipadaImpideCancelarSobreLaHora() {
         ServicioReservas servicioEstricto = new ServicioReservas(
-                repositorioReservas, repositorioHorarios, notificador,
+                repositorioReservas, repositorioHorarios, publicador,
                 new PoliticaCancelacionAnticipada());
         Reserva reserva = servicioEstricto.crearReserva(estudiante, horario.getId());
 
@@ -183,13 +194,56 @@ class ServicioReservasTest {
         assertEquals(EstadoReserva.CANCELADA, reserva.getEstado());
     }
 
-    /** Doble de prueba de {@link Notificador}: registra a quien se notifico. */
-    private static class NotificadorDePrueba implements Notificador {
-        private final List<String> mensajes = new ArrayList<>();
+    /**
+     * Un caso de uso publica exactamente un hecho, y ese hecho llega a
+     * todos los observadores registrados sin que el servicio los
+     * conozca.
+     */
+    @Test
+    void cadaCasoDeUsoPublicaUnEventoATodosLosObservadores() {
+        ObservadorDePrueba segundoObservador = new ObservadorDePrueba();
+        publicador.registrar(segundoObservador);
+
+        Reserva reserva = servicioReservas.crearReserva(estudiante, horario.getId());
+        servicioReservas.confirmarReserva(reserva.getId());
+        servicioReservas.cancelarReserva(reserva.getId());
+
+        assertEquals(List.of(TipoEventoReserva.CREADA, TipoEventoReserva.CONFIRMADA,
+                        TipoEventoReserva.CANCELADA),
+                observador.tipos());
+        assertEquals(observador.tipos(), segundoObservador.tipos());
+    }
+
+    @Test
+    void reprogramarPublicaSuPropioEvento() {
+        Reserva reserva = servicioReservas.crearReserva(estudiante, horario.getId());
+        HorarioTutoria otroHorario = new HorarioTutoria("H002", docente,
+                new Asignatura("SIS201", "Bases de datos"),
+                LocalDate.of(2026, 9, 8), LocalTime.of(15, 0), LocalTime.of(16, 0));
+        repositorioHorarios.guardar(otroHorario);
+
+        servicioReservas.reprogramarReserva(reserva.getId(), otroHorario.getId());
+
+        assertEquals(TipoEventoReserva.REPROGRAMADA, observador.eventos.get(1).tipo());
+        assertTrue(observador.eventos.get(1).detalle().contains("H002"));
+    }
+
+    /** Observer de prueba: guarda los hechos publicados por el servicio. */
+    private static class ObservadorDePrueba implements ObservadorReserva {
+        private final List<EventoReserva> eventos = new ArrayList<>();
 
         @Override
-        public void notificar(String destinatario, String asunto, String mensaje) {
-            mensajes.add(destinatario);
+        public void alOcurrir(EventoReserva evento) {
+            eventos.add(evento);
+        }
+
+        @Override
+        public String nombre() {
+            return "observador de prueba";
+        }
+
+        private List<TipoEventoReserva> tipos() {
+            return eventos.stream().map(EventoReserva::tipo).toList();
         }
     }
 }

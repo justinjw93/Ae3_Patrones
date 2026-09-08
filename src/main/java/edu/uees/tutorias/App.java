@@ -10,7 +10,10 @@ import edu.uees.tutorias.factory.CreadorNotificador;
 import edu.uees.tutorias.factory.CreadorNotificadorConsola;
 import edu.uees.tutorias.factory.CreadorNotificadorCorreo;
 import edu.uees.tutorias.factory.CreadorNotificadorLog;
-import edu.uees.tutorias.notification.Notificador;
+import edu.uees.tutorias.event.ObservadorAgendaDocente;
+import edu.uees.tutorias.event.ObservadorBitacora;
+import edu.uees.tutorias.event.ObservadorNotificacion;
+import edu.uees.tutorias.event.PublicadorReservas;
 import edu.uees.tutorias.persistence.RepositorioHorarios;
 import edu.uees.tutorias.persistence.RepositorioHorariosEnMemoria;
 import edu.uees.tutorias.persistence.RepositorioReservas;
@@ -30,6 +33,11 @@ import java.util.List;
  * {@code new} de clase concreta: se obtiene de un
  * {@link CreadorNotificador}, de modo que cambiar de canal es cambiar de
  * ConcreteCreator y nada mas.</p>
+ *
+ * <p>Desde Ae3 el composition root ademas <b>registra observadores</b>
+ * en el {@link PublicadorReservas}. El servicio ya no sabe quien
+ * reacciona a un cambio de reserva: eso se decide aqui, y agregar un
+ * receptor es agregar una linea de registro.</p>
  */
 public final class App {
 
@@ -37,9 +45,16 @@ public final class App {
         RepositorioReservas repositorioReservas = new RepositorioReservasEnMemoria();
         RepositorioHorarios repositorioHorarios = new RepositorioHorariosEnMemoria();
         CreadorNotificador creadorNotificador = new CreadorNotificadorCorreo();
-        Notificador notificador = creadorNotificador.crearNotificador();
+
+        PublicadorReservas publicador = new PublicadorReservas();
+        ObservadorBitacora bitacora = new ObservadorBitacora();
+        ObservadorAgendaDocente agenda = new ObservadorAgendaDocente();
+        publicador.registrar(new ObservadorNotificacion(creadorNotificador));
+        publicador.registrar(bitacora);
+        publicador.registrar(agenda);
+
         ServicioReservas servicioReservas =
-                new ServicioReservas(repositorioReservas, repositorioHorarios, notificador);
+                new ServicioReservas(repositorioReservas, repositorioHorarios, publicador);
 
         Docente docente = new Docente("D001", "Ana", "Perez", "ana.perez@uees.edu.ec", "Bases de datos");
         Asignatura asignatura = new Asignatura("SIS201", "Bases de datos");
@@ -61,9 +76,27 @@ public final class App {
         System.out.println("Estado final de la reserva: " + reserva.getEstado());
         System.out.println("Estado final del horario: " + horario.getEstado());
 
+        demostrarObservadores(publicador, bitacora, agenda, docente.getCorreo());
+
         demostrarCanalesDeNotificacion(estudiante.getCorreo());
         demostrarBuilderDeReservas(servicioReservas, repositorioHorarios,
                 docente, asignatura, estudiante);
+    }
+
+    /**
+     * Muestra que un mismo hecho llego a tres receptores distintos sin
+     * que {@code ServicioReservas} conozca a ninguno.
+     */
+    private static void demostrarObservadores(PublicadorReservas publicador,
+                                              ObservadorBitacora bitacora,
+                                              ObservadorAgendaDocente agenda,
+                                              String correoDocente) {
+        System.out.println();
+        System.out.println("### Observer: un hecho, varios receptores ###");
+        System.out.println("Observadores registrados: " + publicador.cantidadDeObservadores());
+        System.out.println("Asientos en bitacora: " + bitacora.cantidadDeAsientos());
+        System.out.println("Agenda del docente tras la cancelacion: "
+                + agenda.bloquesDe(correoDocente));
     }
 
     /**

@@ -4,7 +4,9 @@ import edu.uees.tutorias.builder.ReservaBuilder;
 import edu.uees.tutorias.domain.Estudiante;
 import edu.uees.tutorias.domain.HorarioTutoria;
 import edu.uees.tutorias.domain.Reserva;
-import edu.uees.tutorias.notification.Notificador;
+import edu.uees.tutorias.event.EventoReserva;
+import edu.uees.tutorias.event.PublicadorReservas;
+import edu.uees.tutorias.event.TipoEventoReserva;
 import edu.uees.tutorias.persistence.RepositorioHorarios;
 import edu.uees.tutorias.persistence.RepositorioReservas;
 import edu.uees.tutorias.policy.PoliticaCancelacion;
@@ -20,19 +22,26 @@ import java.util.Optional;
  * Orquesta los casos de uso de reservas: crear, confirmar, cancelar y
  * reprogramar.
  *
- * <p>No conoce como se guardan los datos ni como se envian las
- * notificaciones: recibe esas colaboraciones por el constructor a
- * traves de sus interfaces ({@link RepositorioReservas},
- * {@link RepositorioHorarios}, {@link Notificador}). Esto es Dependency
- * Inversion Principle aplicado: la clase de mayor nivel (el servicio) no
- * depende de implementaciones concretas de persistencia o de mensajeria,
- * y puede probarse con implementaciones falsas (in-memory) sin levantar
+ * <p>No conoce como se guardan los datos ni quien reacciona a los
+ * cambios: recibe esas colaboraciones por el constructor a traves de sus
+ * abstracciones ({@link RepositorioReservas}, {@link RepositorioHorarios},
+ * {@link PublicadorReservas}). Esto es Dependency Inversion Principle
+ * aplicado: la clase de mayor nivel (el servicio) no depende de
+ * implementaciones concretas de persistencia ni de mensajeria, y puede
+ * probarse con implementaciones falsas (in-memory) sin levantar
  * infraestructura real.</p>
  *
  * <p>Tampoco decide directamente si un horario esta disponible ni cambia
  * el estado de una reserva: delega esas reglas en {@link HorarioTutoria}
  * y en {@link Reserva}, que son quienes deben protegerlas (alta
  * cohesion: cada clase resuelve lo que le corresponde).</p>
+ *
+ * <p><b>Rol en el patron Observer (Ae3):</b> el servicio ya no arma
+ * destinatarios ni redacta avisos. Cada caso de uso termina publicando
+ * un {@link EventoReserva}; quien reacciona —canal de mensajeria,
+ * bitacora de auditoria, agenda del docente— se registra en el
+ * publicador desde el composition root. Agregar un receptor ya no
+ * modifica esta clase.</p>
  *
  * <p><b>Rol en el patron Strategy (Ae3):</b> esta clase es el
  * <i>Context</i>. No conoce ninguna regla de anticipacion ni de
@@ -44,7 +53,7 @@ public class ServicioReservas {
 
     private final RepositorioReservas repositorioReservas;
     private final RepositorioHorarios repositorioHorarios;
-    private final Notificador notificador;
+    private final PublicadorReservas publicador;
     private final PoliticaCancelacion politicaCancelacion;
 
     /**
@@ -54,8 +63,8 @@ public class ServicioReservas {
      */
     public ServicioReservas(RepositorioReservas repositorioReservas,
                              RepositorioHorarios repositorioHorarios,
-                             Notificador notificador) {
-        this(repositorioReservas, repositorioHorarios, notificador,
+                             PublicadorReservas publicador) {
+        this(repositorioReservas, repositorioHorarios, publicador,
                 new PoliticaCancelacionConPenalidad());
     }
 
@@ -65,11 +74,12 @@ public class ServicioReservas {
      */
     public ServicioReservas(RepositorioReservas repositorioReservas,
                              RepositorioHorarios repositorioHorarios,
-                             Notificador notificador,
+                             PublicadorReservas publicador,
                              PoliticaCancelacion politicaCancelacion) {
         this.repositorioReservas = Objects.requireNonNull(repositorioReservas);
         this.repositorioHorarios = Objects.requireNonNull(repositorioHorarios);
-        this.notificador = Objects.requireNonNull(notificador);
+        this.publicador = Objects.requireNonNull(publicador,
+                "El servicio publica sus cambios a traves de un PublicadorReservas.");
         this.politicaCancelacion = Objects.requireNonNull(politicaCancelacion,
                 "El servicio necesita una politica de cancelacion.");
     }
@@ -98,12 +108,9 @@ public class ServicioReservas {
         Reserva reserva = builder.conHorario(horario).construir();
         repositorioReservas.guardar(reserva);
 
-        notificador.notificar(
-                horario.getDocente().getCorreo(),
-                "Nueva reserva de tutoria",
-                reserva.getEstudiante().nombreCompleto() + " reservo el horario "
-                        + horario.getId() + " de " + horario.getAsignatura()
-                        + " (" + reserva.getModalidad() + ": " + reserva.getMotivo() + ")");
+        publicador.publicar(EventoReserva.de(TipoEventoReserva.CREADA, reserva,
+                horario.getAsignatura() + " (" + reserva.getModalidad()
+                        + ": " + reserva.getMotivo() + ")"));
 
         return reserva;
     }
@@ -111,10 +118,8 @@ public class ServicioReservas {
     public void confirmarReserva(String idReserva) {
         Reserva reserva = obtenerReserva(idReserva);
         reserva.confirmar();
-        notificador.notificar(
-                reserva.getEstudiante().getCorreo(),
-                "Tutoria confirmada",
-                "Tu reserva " + reserva.getId() + " fue confirmada.");
+        publicador.publicar(EventoReserva.de(TipoEventoReserva.CONFIRMADA, reserva,
+                "Confirmada para el " + reserva.getHorario().inicio()));
     }
 
     /** Cancela aplicando la politica vigente del servicio. */
@@ -157,11 +162,8 @@ public class ServicioReservas {
 
         reserva.cancelar();
 
-        notificador.notificar(
-                reserva.getHorario().getDocente().getCorreo(),
-                "Reserva cancelada",
-                "La reserva " + reserva.getId() + " fue cancelada. "
-                        + politica.nombre() + ": " + resultado.motivo());
+        publicador.publicar(new EventoReserva(TipoEventoReserva.CANCELADA, reserva,
+                momentoSolicitud, politica.nombre() + ": " + resultado.motivo()));
 
         return resultado;
     }
@@ -170,10 +172,8 @@ public class ServicioReservas {
         Reserva reserva = obtenerReserva(idReserva);
         HorarioTutoria nuevoHorario = obtenerHorario(idNuevoHorario);
         reserva.reprogramar(nuevoHorario);
-        notificador.notificar(
-                reserva.getEstudiante().getCorreo(),
-                "Tutoria reprogramada",
-                "Tu reserva " + reserva.getId() + " se movio al horario " + nuevoHorario.getId());
+        publicador.publicar(EventoReserva.de(TipoEventoReserva.REPROGRAMADA, reserva,
+                "Nuevo horario " + nuevoHorario.getId() + " el " + nuevoHorario.inicio()));
     }
 
     private HorarioTutoria obtenerHorario(String idHorario) {
