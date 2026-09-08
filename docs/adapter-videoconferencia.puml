@@ -1,0 +1,78 @@
+@startuml adapter-videoconferencia
+title Adapter aplicado a los proveedores de videoconferencia (Ae3)
+
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+hide empty members
+
+package "edu.uees.tutorias.facade" {
+  class GestionTutorias <<Client>> {
+    + crearTutoriaVirtual(estudiante: Estudiante, idHorario: String, motivo: String) : Reserva
+  }
+}
+
+package "edu.uees.tutorias.video" {
+  interface ProveedorVideoconferencia <<Target>> {
+    + crearSala(titulo: String, inicio: LocalDateTime, duracionMinutos: int) : SalaVirtual
+    + nombre() : String
+  }
+
+  class AdaptadorZoom <<Adapter>> {
+    - api : ZoomMeetingApi
+    - zona : ZoneId
+    + crearSala(titulo: String, inicio: LocalDateTime, duracionMinutos: int) : SalaVirtual
+    - descomponer(respuesta: String) : Map<String, String>
+  }
+
+  class AdaptadorMeetInstitucional <<Adapter>> {
+    - servicio : MeetInstitucionalService
+    + crearSala(titulo: String, inicio: LocalDateTime, duracionMinutos: int) : SalaVirtual
+  }
+
+  class SalaVirtual <<record>> {
+    + url : String
+    + codigoAcceso : String
+    + proveedor : String
+    + exigeCodigo() : boolean
+  }
+}
+
+package "edu.uees.tutorias.video.external" <<Codigo de terceros>> {
+  class ZoomMeetingApi <<Adaptee>> {
+    + scheduleMeeting(parametros: Map<String, Object>) : String
+  }
+
+  class MeetInstitucionalService <<Adaptee>> {
+    + reservar(asunto: String, fechaHoraIso: String, minutos: int) : SalaMeet
+  }
+
+  class SalaMeet {
+    + getEnlace() : String
+    + getIdentificador() : String
+  }
+}
+
+GestionTutorias ..> ProveedorVideoconferencia : usa el contrato,\nnunca el SDK >
+AdaptadorZoom ..|> ProveedorVideoconferencia
+AdaptadorMeetInstitucional ..|> ProveedorVideoconferencia
+
+AdaptadorZoom "1" o--> "1" ZoomMeetingApi : object adapter\n(composicion) >
+AdaptadorMeetInstitucional "1" o--> "1" MeetInstitucionalService
+
+ProveedorVideoconferencia ..> SalaVirtual : <<create>>
+MeetInstitucionalService ..> SalaMeet : <<create>>
+
+note bottom of AdaptadorZoom
+  Traduccion encerrada aqui:
+  minutos -> segundos
+  LocalDateTime local -> epoch millis UTC
+  "clave=valor;..." -> SalaVirtual
+end note
+
+note right of ZoomMeetingApi
+  Codigo de terceros: no se modifica.
+  Si pudiera cambiarse su firma,
+  el patron sobraria.
+end note
+
+@enduml

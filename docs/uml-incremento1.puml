@@ -1,0 +1,299 @@
+@startuml uml-incremento1
+title Sistema de gestion de tutorias - Incremento 1 (Ae3)\nDiseno OO de Ae1 + Factory Method y Builder de Ae2 + Strategy, Observer, Adapter y Facade
+
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam nodesep 30
+skinparam ranksep 45
+hide empty members
+
+' ===================== CLIENTE Y FACHADA =====================
+class App <<Composition root>> {
+  + {static} main(args: String[])
+}
+
+package "facade" {
+  class GestionTutorias <<Facade, Ae3>> {
+    + crearTutoriaVirtual(estudiante: Estudiante, idHorario: String, motivo: String) : Reserva
+    + crearTutoriaPresencial(estudiante: Estudiante, idHorario: String, motivo: String) : Reserva
+    + confirmar(idReserva: String)
+    + cancelarPorEstudiante(idReserva: String) : ResultadoCancelacion
+    + cancelarPorDocente(idReserva: String, justificacion: String) : ResultadoCancelacion
+    + reprogramar(idReserva: String, idNuevoHorario: String)
+  }
+}
+
+' ===================== SERVICIO =====================
+package "service" {
+  class ServicioReservas <<Context>> {
+    + crearReserva(builder: ReservaBuilder, idHorario: String) : Reserva
+    + confirmarReserva(idReserva: String)
+    + cancelarReserva(idReserva: String, politica: PoliticaCancelacion, momento: LocalDateTime) : ResultadoCancelacion
+    + reprogramarReserva(idReserva: String, idNuevoHorario: String)
+  }
+}
+
+' ===================== DOMINIO (Ae1) =====================
+package "domain" {
+  abstract class Usuario {
+    - id : String
+    - nombre : String
+    - apellido : String
+    - correo : String
+    + nombreCompleto() : String
+  }
+
+  class Estudiante {
+    - carrera : String
+    - semestre : int
+  }
+
+  class Docente {
+    - especialidad : String
+    + agregarAsignatura(a: Asignatura)
+  }
+
+  class Asignatura {
+    - codigo : String
+    - nombre : String
+  }
+
+  class HorarioTutoria {
+    - id : String
+    - fecha : LocalDate
+    - horaInicio : LocalTime
+    - horaFin : LocalTime
+    - estado : EstadoHorario
+    + estaDisponible() : boolean
+    + marcarReservado()
+    + liberar()
+    + inicio() : LocalDateTime
+    + duracionEnMinutos() : int
+  }
+
+  class Reserva {
+    - id : String
+    - estado : EstadoReserva
+    - modalidad : ModalidadTutoria
+    - enlaceVirtual : String
+    - recordatorioMinutosAntes : int
+    + confirmar()
+    + cancelar()
+    + reprogramar(nuevoHorario: HorarioTutoria)
+  }
+
+  enum EstadoReserva {
+    PENDIENTE
+    CONFIRMADA
+    CANCELADA
+    REALIZADA
+  }
+
+  enum EstadoHorario {
+    DISPONIBLE
+    RESERVADO
+    INACTIVO
+  }
+
+  enum ModalidadTutoria {
+    PRESENCIAL
+    VIRTUAL
+  }
+}
+
+' ===================== BUILDER (Ae2) =====================
+package "builder" {
+  class ReservaBuilder <<Builder, Ae2>> {
+    + conEstudiante(e: Estudiante) : ReservaBuilder
+    + conHorario(h: HorarioTutoria) : ReservaBuilder
+    + virtualCon(enlace: String) : ReservaBuilder
+    + presencial() : ReservaBuilder
+    + conMotivo(m: String) : ReservaBuilder
+    + validar()
+    + construir() : Reserva
+  }
+}
+
+' ===================== STRATEGY (Ae3) =====================
+package "policy" {
+  interface PoliticaCancelacion <<Strategy, Ae3>> {
+    + evaluar(reserva: Reserva, momentoSolicitud: LocalDateTime) : ResultadoCancelacion
+    + nombre() : String
+  }
+  class PoliticaCancelacionAnticipada <<ConcreteStrategy>>
+  class PoliticaCancelacionConPenalidad <<ConcreteStrategy>>
+  class PoliticaCancelacionDocente <<ConcreteStrategy>>
+  class ResultadoCancelacion <<record>> {
+    + permitida : boolean
+    + penalidadPorcentaje : int
+    + motivo : String
+  }
+}
+
+' ===================== OBSERVER (Ae3) =====================
+package "event" {
+  class PublicadorReservas <<Subject, Ae3>> {
+    + registrar(o: ObservadorReserva)
+    + quitar(o: ObservadorReserva)
+    + publicar(evento: EventoReserva)
+  }
+  interface ObservadorReserva <<Observer, Ae3>> {
+    + alOcurrir(evento: EventoReserva)
+    + nombre() : String
+  }
+  class ObservadorNotificacion <<ConcreteObserver>>
+  class ObservadorBitacora <<ConcreteObserver>>
+  class ObservadorAgendaDocente <<ConcreteObserver>>
+  class EventoReserva <<record>> {
+    + tipo : TipoEventoReserva
+    + momento : LocalDateTime
+    + detalle : String
+  }
+  enum TipoEventoReserva {
+    CREADA
+    CONFIRMADA
+    CANCELADA
+    REPROGRAMADA
+  }
+}
+
+' ===================== FACTORY METHOD (Ae2) =====================
+package "factory" {
+  abstract class CreadorNotificador <<Creator, Ae2>> {
+    + {abstract} crearNotificador() : Notificador
+    + {abstract} nombreCanal() : String
+    + enviarNotificacion(destinatario: String, asunto: String, mensaje: String)
+  }
+  class CreadorNotificadorConsola <<ConcreteCreator>>
+  class CreadorNotificadorLog <<ConcreteCreator>>
+  class CreadorNotificadorCorreo <<ConcreteCreator>>
+  class CreadorNotificadorSms <<ConcreteCreator>>
+}
+
+package "notification" {
+  interface Notificador <<Product, Ae2>> {
+    + notificar(destinatario: String, asunto: String, mensaje: String)
+  }
+  class NotificadorConsola <<ConcreteProduct>>
+  class NotificadorLog <<ConcreteProduct>>
+  class NotificadorCorreo <<ConcreteProduct>>
+  class NotificadorSms <<ConcreteProduct>>
+}
+
+' ===================== ADAPTER (Ae3) =====================
+package "video" {
+  interface ProveedorVideoconferencia <<Target, Ae3>> {
+    + crearSala(titulo: String, inicio: LocalDateTime, duracionMinutos: int) : SalaVirtual
+    + nombre() : String
+  }
+  class AdaptadorZoom <<Adapter>>
+  class AdaptadorMeetInstitucional <<Adapter>>
+  class SalaVirtual <<record>> {
+    + url : String
+    + codigoAcceso : String
+    + proveedor : String
+  }
+}
+
+package "video.external" <<Codigo de terceros>> {
+  class ZoomMeetingApi <<Adaptee>> {
+    + scheduleMeeting(parametros: Map<String, Object>) : String
+  }
+  class MeetInstitucionalService <<Adaptee>> {
+    + reservar(asunto: String, fechaHoraIso: String, minutos: int) : SalaMeet
+  }
+}
+
+' ===================== PERSISTENCIA (Ae1) =====================
+package "persistence" {
+  interface RepositorioReservas {
+    + guardar(r: Reserva)
+    + buscarPorId(id: String) : Optional<Reserva>
+  }
+  interface RepositorioHorarios {
+    + guardar(h: HorarioTutoria)
+    + buscarPorId(id: String) : Optional<HorarioTutoria>
+  }
+  class RepositorioReservasEnMemoria
+  class RepositorioHorariosEnMemoria
+}
+
+' ===================== RELACIONES =====================
+App ..> GestionTutorias
+
+GestionTutorias "1" o--> "1" ServicioReservas
+GestionTutorias "1" o--> "1" RepositorioHorarios
+GestionTutorias "1" o--> "1" ProveedorVideoconferencia
+GestionTutorias ..> ReservaBuilder : <<create>>
+
+ServicioReservas "1" o--> "1" RepositorioReservas
+ServicioReservas "1" o--> "1" RepositorioHorarios
+ServicioReservas "1" o--> "1" PublicadorReservas
+ServicioReservas "1" o--> "1" PoliticaCancelacion
+
+' Herencia (Ae1)
+Estudiante --|> Usuario
+Docente --|> Usuario
+
+' Asociaciones del dominio (Ae1)
+Docente "1" --> "0..*" Asignatura : imparte >
+HorarioTutoria "0..*" --> "1" Docente : publicado por >
+HorarioTutoria "0..*" --> "1" Asignatura : sobre >
+Reserva "0..*" --> "1" Estudiante : solicitada por >
+Reserva "1" --> "1" HorarioTutoria : ocupa >
+Reserva ..> EstadoReserva
+Reserva ..> ModalidadTutoria
+HorarioTutoria ..> EstadoHorario
+
+' Builder (Ae2)
+ReservaBuilder ..> Reserva : <<create>>
+
+' Strategy (Ae3)
+PoliticaCancelacionAnticipada ..|> PoliticaCancelacion
+PoliticaCancelacionConPenalidad ..|> PoliticaCancelacion
+PoliticaCancelacionDocente ..|> PoliticaCancelacion
+PoliticaCancelacion ..> ResultadoCancelacion : <<create>>
+PoliticaCancelacion ..> Reserva : consulta
+
+' Observer (Ae3)
+PublicadorReservas "1" o--> "0..*" ObservadorReserva
+ObservadorNotificacion ..|> ObservadorReserva
+ObservadorBitacora ..|> ObservadorReserva
+ObservadorAgendaDocente ..|> ObservadorReserva
+PublicadorReservas ..> EventoReserva
+EventoReserva "1" --> "1" Reserva
+EventoReserva ..> TipoEventoReserva
+
+' Puente Observer <-> Factory Method
+ObservadorNotificacion "1" o--> "1" CreadorNotificador : Ae2 reutilizado >
+
+' Factory Method (Ae2)
+CreadorNotificadorConsola --|> CreadorNotificador
+CreadorNotificadorLog --|> CreadorNotificador
+CreadorNotificadorCorreo --|> CreadorNotificador
+CreadorNotificadorSms --|> CreadorNotificador
+CreadorNotificador ..> Notificador : <<create>>
+NotificadorConsola ..|> Notificador
+NotificadorLog ..|> Notificador
+NotificadorCorreo ..|> Notificador
+NotificadorSms ..|> Notificador
+
+' Adapter (Ae3)
+AdaptadorZoom ..|> ProveedorVideoconferencia
+AdaptadorMeetInstitucional ..|> ProveedorVideoconferencia
+AdaptadorZoom "1" o--> "1" ZoomMeetingApi
+AdaptadorMeetInstitucional "1" o--> "1" MeetInstitucionalService
+ProveedorVideoconferencia ..> SalaVirtual : <<create>>
+
+' Persistencia (Ae1)
+RepositorioReservasEnMemoria ..|> RepositorioReservas
+RepositorioHorariosEnMemoria ..|> RepositorioHorarios
+
+legend right
+  |= Estereotipo |= Incremento |
+  | Builder, Factory Method | Ae2 (Semana 3) |
+  | Strategy, Observer, Adapter, Facade | Ae3 (Semana 4) |
+  | Sin estereotipo | Ae1 (Semana 2) |
+endlegend
+
+@enduml

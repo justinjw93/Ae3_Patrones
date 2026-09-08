@@ -1,0 +1,62 @@
+@startuml facade-tutorias
+title Facade aplicado al flujo de creacion de tutorias (Ae3)
+
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+hide empty members
+
+class App <<Client>> {
+  + {static} main(args: String[])
+}
+
+package "edu.uees.tutorias.facade" {
+  class GestionTutorias <<Facade>> {
+    - servicioReservas : ServicioReservas
+    - repositorioHorarios : RepositorioHorarios
+    - proveedorVideoconferencia : ProveedorVideoconferencia
+    + crearTutoriaVirtual(estudiante: Estudiante, idHorario: String, motivo: String) : Reserva
+    + crearTutoriaPresencial(estudiante: Estudiante, idHorario: String, motivo: String) : Reserva
+    + confirmar(idReserva: String)
+    + cancelarPorEstudiante(idReserva: String) : ResultadoCancelacion
+    + cancelarPorDocente(idReserva: String, justificacion: String) : ResultadoCancelacion
+    + reprogramar(idReserva: String, idNuevoHorario: String)
+  }
+}
+
+package "Subsistema coordinado" {
+  class ServicioReservas
+  interface RepositorioHorarios
+  interface ProveedorVideoconferencia
+  class ReservaBuilder <<Builder, Ae2>>
+  class PublicadorReservas <<Subject>>
+  interface PoliticaCancelacion <<Strategy>>
+}
+
+App ..> GestionTutorias : una sola puerta
+
+GestionTutorias "1" o--> "1" ServicioReservas
+GestionTutorias "1" o--> "1" RepositorioHorarios
+GestionTutorias "1" o--> "1" ProveedorVideoconferencia
+GestionTutorias ..> ReservaBuilder : <<create>>
+GestionTutorias ..> PoliticaCancelacion : elige la politica\nsegun el origen >
+
+ServicioReservas "1" o--> "1" PublicadorReservas
+ServicioReservas "1" o--> "1" PoliticaCancelacion
+
+note bottom of GestionTutorias
+  Limite deliberado: la fachada SOLO coordina.
+  No valida (Builder), no decide si la cancelacion
+  procede (Strategy), no elige quien se entera
+  (Observer) y no habla el dialecto de ningun
+  proveedor (Adapter). Por eso no es una clase Dios.
+end note
+
+note right of App
+  Antes: buscar horario, pedir sala,
+  trasladar url y codigo al builder,
+  encadenar la configuracion, delegar
+  en el servicio. Seis pasos ordenados.
+  Ahora: una llamada.
+end note
+
+@enduml

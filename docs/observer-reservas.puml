@@ -1,0 +1,103 @@
+@startuml observer-reservas
+title Observer aplicado a los cambios de estado de una Reserva (Ae3)
+
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+hide empty members
+
+package "edu.uees.tutorias.service" {
+  class ServicioReservas {
+    + crearReserva(builder: ReservaBuilder, idHorario: String) : Reserva
+    + confirmarReserva(idReserva: String)
+    + cancelarReserva(idReserva: String) : ResultadoCancelacion
+    + reprogramarReserva(idReserva: String, idNuevoHorario: String)
+  }
+}
+
+package "edu.uees.tutorias.event" {
+  class PublicadorReservas <<Subject>> {
+    - observadores : List<ObservadorReserva>
+    - fallos : List<String>
+    + registrar(observador: ObservadorReserva)
+    + quitar(observador: ObservadorReserva)
+    + publicar(evento: EventoReserva)
+    + cantidadDeObservadores() : int
+  }
+
+  interface ObservadorReserva <<Observer>> {
+    + alOcurrir(evento: EventoReserva)
+    + nombre() : String
+  }
+
+  class ObservadorNotificacion <<ConcreteObserver>> {
+    - creadorNotificador : CreadorNotificador
+    + alOcurrir(evento: EventoReserva)
+  }
+
+  class ObservadorBitacora <<ConcreteObserver>> {
+    - asientos : List<String>
+    + alOcurrir(evento: EventoReserva)
+    + getAsientos() : List<String>
+  }
+
+  class ObservadorAgendaDocente <<ConcreteObserver>> {
+    - agendaPorDocente : Map<String, Set<String>>
+    + alOcurrir(evento: EventoReserva)
+    + bloquesDe(correoDocente: String) : List<String>
+  }
+
+  class EventoReserva <<record>> {
+    + tipo : TipoEventoReserva
+    + reserva : Reserva
+    + momento : LocalDateTime
+    + detalle : String
+    + correoEstudiante() : String
+    + correoDocente() : String
+  }
+
+  enum TipoEventoReserva {
+    CREADA
+    CONFIRMADA
+    CANCELADA
+    REPROGRAMADA
+  }
+}
+
+package "edu.uees.tutorias.factory" {
+  abstract class CreadorNotificador <<Creator, Ae2>> {
+    + {abstract} crearNotificador() : Notificador
+    + enviarNotificacion(destinatario: String, asunto: String, mensaje: String)
+  }
+}
+
+package "edu.uees.tutorias.domain" {
+  class Reserva
+}
+
+ServicioReservas "1" o--> "1" PublicadorReservas : publica hechos >
+PublicadorReservas "1" o--> "0..*" ObservadorReserva : notifica >
+PublicadorReservas ..> EventoReserva
+
+ObservadorNotificacion ..|> ObservadorReserva
+ObservadorBitacora ..|> ObservadorReserva
+ObservadorAgendaDocente ..|> ObservadorReserva
+
+ObservadorNotificacion "1" o--> "1" CreadorNotificador : pide el canal al\nFactory Method de Ae2 >
+
+EventoReserva "1" --> "1" Reserva : afecta a >
+EventoReserva ..> TipoEventoReserva
+
+note bottom of ServicioReservas
+  Antes de Ae3 el servicio armaba
+  destinatario, asunto y cuerpo en sus
+  cuatro casos de uso. Ahora solo publica
+  el hecho: no sabe cuantos escuchan.
+end note
+
+note right of ObservadorNotificacion
+  Punto de encuentro entre los dos
+  incrementos: el Observer consume el
+  Factory Method en lugar de reemplazarlo.
+end note
+
+@enduml

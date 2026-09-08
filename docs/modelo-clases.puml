@@ -1,5 +1,5 @@
 @startuml modelo-clases
-title Sistema de gestion de tutorias - Diagrama de clases general (actualizado en Ae3)
+title Sistema de gestion de tutorias - Diagrama de clases general (estado inicial del incremento 1: Ae1 + Ae2)
 
 skinparam classAttributeIconSize 0
 hide circle

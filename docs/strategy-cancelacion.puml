@@ -1,0 +1,79 @@
+@startuml strategy-cancelacion
+title Strategy aplicado a las politicas de cancelacion (Ae3)
+
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+hide empty members
+
+package "edu.uees.tutorias.service" {
+  class ServicioReservas <<Context>> {
+    - politicaCancelacion : PoliticaCancelacion
+    + cancelarReserva(idReserva: String) : ResultadoCancelacion
+    + cancelarReserva(idReserva: String, politica: PoliticaCancelacion) : ResultadoCancelacion
+    + cancelarReserva(idReserva: String, politica: PoliticaCancelacion, momento: LocalDateTime) : ResultadoCancelacion
+  }
+}
+
+package "edu.uees.tutorias.policy" {
+  interface PoliticaCancelacion <<Strategy>> {
+    + evaluar(reserva: Reserva, momentoSolicitud: LocalDateTime) : ResultadoCancelacion
+    + nombre() : String
+  }
+
+  class PoliticaCancelacionAnticipada <<ConcreteStrategy>> {
+    + {static} HORAS_MINIMAS_POR_DEFECTO : int = 24
+    - horasMinimas : int
+    + evaluar(reserva: Reserva, momentoSolicitud: LocalDateTime) : ResultadoCancelacion
+  }
+
+  class PoliticaCancelacionConPenalidad <<ConcreteStrategy>> {
+    + {static} PENALIDAD_POR_DEFECTO : int = 50
+    - horasSinCosto : int
+    - penalidadPorcentaje : int
+    + evaluar(reserva: Reserva, momentoSolicitud: LocalDateTime) : ResultadoCancelacion
+  }
+
+  class PoliticaCancelacionDocente <<ConcreteStrategy>> {
+    - justificacion : String
+    + evaluar(reserva: Reserva, momentoSolicitud: LocalDateTime) : ResultadoCancelacion
+  }
+
+  class ResultadoCancelacion <<record>> {
+    + permitida : boolean
+    + penalidadPorcentaje : int
+    + motivo : String
+    + tienePenalidad() : boolean
+  }
+}
+
+package "edu.uees.tutorias.domain" {
+  class Reserva {
+    - estado : EstadoReserva
+    + cancelar()
+  }
+}
+
+ServicioReservas "1" o--> "1" PoliticaCancelacion : politica vigente >
+PoliticaCancelacionAnticipada ..|> PoliticaCancelacion
+PoliticaCancelacionConPenalidad ..|> PoliticaCancelacion
+PoliticaCancelacionDocente ..|> PoliticaCancelacion
+
+PoliticaCancelacion ..> ResultadoCancelacion : <<create>>
+PoliticaCancelacion ..> Reserva : consulta horario y estado
+ServicioReservas ..> Reserva : cancelar() solo si\nel veredicto es favorable
+
+note bottom of Reserva
+  La transicion -> CANCELADA y la liberacion
+  del horario siguen aqui. La regla
+  institucional (anticipacion, penalidad,
+  origen) vive en la Strategy.
+end note
+
+note right of PoliticaCancelacion
+  Que cambia: el criterio de aceptacion
+  y el calculo de la penalidad.
+  Que permanece estable: el servicio,
+  que solo consulta el veredicto.
+end note
+
+@enduml
