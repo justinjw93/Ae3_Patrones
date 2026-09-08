@@ -14,15 +14,21 @@ import edu.uees.tutorias.persistence.RepositorioHorarios;
 import edu.uees.tutorias.persistence.RepositorioHorariosEnMemoria;
 import edu.uees.tutorias.persistence.RepositorioReservas;
 import edu.uees.tutorias.persistence.RepositorioReservasEnMemoria;
+import edu.uees.tutorias.policy.PoliticaCancelacionAnticipada;
+import edu.uees.tutorias.policy.PoliticaCancelacionConPenalidad;
+import edu.uees.tutorias.policy.PoliticaCancelacionDocente;
+import edu.uees.tutorias.policy.ResultadoCancelacion;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -127,6 +133,54 @@ class ServicioReservasTest {
         assertEquals(15, reserva.getRecordatorioMinutosAntes());
         assertEquals(EstadoHorario.RESERVADO, horario.getEstado());
         assertEquals(1, notificador.mensajes.size());
+    }
+
+    @Test
+    void laPoliticaAnticipadaImpideCancelarSobreLaHora() {
+        ServicioReservas servicioEstricto = new ServicioReservas(
+                repositorioReservas, repositorioHorarios, notificador,
+                new PoliticaCancelacionAnticipada());
+        Reserva reserva = servicioEstricto.crearReserva(estudiante, horario.getId());
+
+        LocalDateTime dosHorasAntes = horario.inicio().minusHours(2);
+
+        assertThrows(IllegalStateException.class,
+                () -> servicioEstricto.cancelarReserva(
+                        reserva.getId(), new PoliticaCancelacionAnticipada(), dosHorasAntes));
+        assertEquals(EstadoReserva.PENDIENTE, reserva.getEstado());
+        assertEquals(EstadoHorario.RESERVADO, horario.getEstado());
+    }
+
+    @Test
+    void laPoliticaPorDefectoCancelaTardePeroDevuelvePenalidad() {
+        Reserva reserva = servicioReservas.crearReserva(estudiante, horario.getId());
+
+        ResultadoCancelacion resultado = servicioReservas.cancelarReserva(
+                reserva.getId(), new PoliticaCancelacionConPenalidad(),
+                horario.inicio().minusHours(2));
+
+        assertTrue(resultado.permitida());
+        assertTrue(resultado.tienePenalidad());
+        assertEquals(EstadoReserva.CANCELADA, reserva.getEstado());
+        assertTrue(horario.estaDisponible());
+    }
+
+    /**
+     * Mismo servicio, mismo instante tardio: cambiar la estrategia de la
+     * llamada cambia el resultado sin tocar {@code ServicioReservas} ni
+     * {@code Reserva}.
+     */
+    @Test
+    void cancelarComoDocenteNoPenalizaAunqueSeaTarde() {
+        Reserva reserva = servicioReservas.crearReserva(estudiante, horario.getId());
+
+        ResultadoCancelacion resultado = servicioReservas.cancelarReserva(
+                reserva.getId(), new PoliticaCancelacionDocente(),
+                horario.inicio().minusHours(2));
+
+        assertTrue(resultado.permitida());
+        assertFalse(resultado.tienePenalidad());
+        assertEquals(EstadoReserva.CANCELADA, reserva.getEstado());
     }
 
     /** Doble de prueba de {@link Notificador}: registra a quien se notifico. */

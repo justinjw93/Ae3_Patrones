@@ -79,6 +79,16 @@ public class Reserva {
         this.estado = EstadoReserva.CONFIRMADA;
     }
 
+    /**
+     * Ejecuta la transicion a CANCELADA y libera el horario.
+     *
+     * <p>Comprueba unicamente que el estado actual lo permita. La regla
+     * institucional —anticipacion exigida, penalidad, quien origina la
+     * solicitud— <b>no</b> vive aqui: la evalua una
+     * {@code PoliticaCancelacion} (Strategy) antes de llamar a este
+     * metodo. La reserva sigue siendo duena de su transicion; el
+     * reglamento, que cambia por normativa, vive fuera.</p>
+     */
     public void cancelar() {
         if (estado != EstadoReserva.PENDIENTE && estado != EstadoReserva.CONFIRMADA) {
             throw new IllegalStateException(

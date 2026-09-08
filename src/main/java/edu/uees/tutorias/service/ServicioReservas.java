@@ -7,7 +7,12 @@ import edu.uees.tutorias.domain.Reserva;
 import edu.uees.tutorias.notification.Notificador;
 import edu.uees.tutorias.persistence.RepositorioHorarios;
 import edu.uees.tutorias.persistence.RepositorioReservas;
+import edu.uees.tutorias.policy.PoliticaCancelacion;
+import edu.uees.tutorias.policy.PoliticaCancelacionConPenalidad;
+import edu.uees.tutorias.policy.PoliticaCancelacionDocente;
+import edu.uees.tutorias.policy.ResultadoCancelacion;
 
+import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -28,19 +33,45 @@ import java.util.Optional;
  * el estado de una reserva: delega esas reglas en {@link HorarioTutoria}
  * y en {@link Reserva}, que son quienes deben protegerlas (alta
  * cohesion: cada clase resuelve lo que le corresponde).</p>
+ *
+ * <p><b>Rol en el patron Strategy (Ae3):</b> esta clase es el
+ * <i>Context</i>. No conoce ninguna regla de anticipacion ni de
+ * penalidad: recibe una {@link PoliticaCancelacion}, le pide el
+ * veredicto y actua sobre el. Cambiar el reglamento de cancelaciones es
+ * cambiar la estrategia inyectada, no editar este servicio.</p>
  */
 public class ServicioReservas {
 
     private final RepositorioReservas repositorioReservas;
     private final RepositorioHorarios repositorioHorarios;
     private final Notificador notificador;
+    private final PoliticaCancelacion politicaCancelacion;
 
+    /**
+     * Construye el servicio con la politica de cancelacion por defecto
+     * del sistema ({@link PoliticaCancelacionConPenalidad}), que acepta
+     * toda cancelacion y traslada el costo de la tardanza al estudiante.
+     */
     public ServicioReservas(RepositorioReservas repositorioReservas,
                              RepositorioHorarios repositorioHorarios,
                              Notificador notificador) {
+        this(repositorioReservas, repositorioHorarios, notificador,
+                new PoliticaCancelacionConPenalidad());
+    }
+
+    /**
+     * Construye el servicio indicando explicitamente la politica de
+     * cancelacion vigente (Strategy inyectada como colaboracion).
+     */
+    public ServicioReservas(RepositorioReservas repositorioReservas,
+                             RepositorioHorarios repositorioHorarios,
+                             Notificador notificador,
+                             PoliticaCancelacion politicaCancelacion) {
         this.repositorioReservas = Objects.requireNonNull(repositorioReservas);
         this.repositorioHorarios = Objects.requireNonNull(repositorioHorarios);
         this.notificador = Objects.requireNonNull(notificador);
+        this.politicaCancelacion = Objects.requireNonNull(politicaCancelacion,
+                "El servicio necesita una politica de cancelacion.");
     }
 
     /**
@@ -86,13 +117,53 @@ public class ServicioReservas {
                 "Tu reserva " + reserva.getId() + " fue confirmada.");
     }
 
-    public void cancelarReserva(String idReserva) {
+    /** Cancela aplicando la politica vigente del servicio. */
+    public ResultadoCancelacion cancelarReserva(String idReserva) {
+        return cancelarReserva(idReserva, politicaCancelacion, LocalDateTime.now());
+    }
+
+    /**
+     * Cancela aplicando una politica distinta a la vigente, para los
+     * casos en que el reglamento depende de quien origina la solicitud
+     * (por ejemplo, {@link PoliticaCancelacionDocente}).
+     */
+    public ResultadoCancelacion cancelarReserva(String idReserva, PoliticaCancelacion politica) {
+        return cancelarReserva(idReserva, politica, LocalDateTime.now());
+    }
+
+    /**
+     * Operacion del Context: pide el veredicto a la Strategy y solo
+     * entonces le pide a la reserva que ejecute su transicion.
+     *
+     * <p>El servicio no conoce ninguna regla de anticipacion ni de
+     * penalidad; sabe unicamente que existe una politica a la que hay
+     * que consultar. Por eso agregar una regla nueva no lo modifica.</p>
+     *
+     * @param momentoSolicitud instante de la solicitud, explicito para
+     *                         que las reglas sean reproducibles en pruebas
+     * @throws IllegalStateException si la politica rechaza la cancelacion
+     */
+    public ResultadoCancelacion cancelarReserva(String idReserva,
+                                                PoliticaCancelacion politica,
+                                                LocalDateTime momentoSolicitud) {
+        Objects.requireNonNull(politica, "La cancelacion requiere una politica.");
         Reserva reserva = obtenerReserva(idReserva);
+
+        ResultadoCancelacion resultado = politica.evaluar(reserva, momentoSolicitud);
+        if (!resultado.permitida()) {
+            throw new IllegalStateException("La reserva " + reserva.getId()
+                    + " no puede cancelarse. " + resultado.motivo());
+        }
+
         reserva.cancelar();
+
         notificador.notificar(
                 reserva.getHorario().getDocente().getCorreo(),
                 "Reserva cancelada",
-                "La reserva " + reserva.getId() + " fue cancelada por el estudiante.");
+                "La reserva " + reserva.getId() + " fue cancelada. "
+                        + politica.nombre() + ": " + resultado.motivo());
+
+        return resultado;
     }
 
     public void reprogramarReserva(String idReserva, String idNuevoHorario) {

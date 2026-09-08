@@ -1,6 +1,8 @@
 package edu.uees.tutorias.domain;
 
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Objects;
 
@@ -39,6 +41,24 @@ public class HorarioTutoria {
 
     public boolean estaDisponible() {
         return estado == EstadoHorario.DISPONIBLE;
+    }
+
+    /**
+     * Instante en que arranca el bloque, combinando fecha y hora de
+     * inicio.
+     *
+     * <p>Lo expone el propio horario, y no quien lo consulta, porque es
+     * el objeto que conoce como se componen sus dos campos. Las
+     * politicas de cancelacion y el proveedor de videoconferencia lo
+     * necesitan para razonar sobre anticipacion y agenda.</p>
+     */
+    public LocalDateTime inicio() {
+        return LocalDateTime.of(fecha, horaInicio);
+    }
+
+    /** Duracion del bloque en minutos. */
+    public int duracionEnMinutos() {
+        return (int) Duration.between(horaInicio, horaFin).toMinutes();
     }
 
     /**
