@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>edu.uees</groupId>
-    <artifactId>semana3-patrones</artifactId>
+    <artifactId>semana4-patrones</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
 
@@ -34,7 +34,7 @@
     </dependencies>
 
     <build>
-        <finalName>semana3-patrones</finalName>
+        <finalName>semana4-patrones</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
