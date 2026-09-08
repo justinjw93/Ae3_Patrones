@@ -1,64 +1,95 @@
-# Implementación comparativa de patrones de diseño
+# Sistema de gestión de tutorías — Incremento 1
 
-Universidad Espíritu Santo · Diseño de Software (UCOM0310) · Ae3 — Implementación comparativa de patrones de diseño · Semana 4, PEL 4 - 2026
+Universidad Espíritu Santo · Diseño de Software (UCOM0310) · **Ae3 — Incremento 1 del proyecto** · Semana 4, PEL 4 - 2026
 
-Proyecto: **Justin Arreaga**  
+Proyecto: **Justin Arreaga**
 Repositorio: **https://github.com/justinjw93/Ae3_Patrones**
+
+| Etapa | Entrega | Repositorio |
+|---|---|---|
+| Ae1 (Semana 2) | Análisis de dominio, diseño OO, cohesión/acoplamiento y SOLID | [diseno_software](https://github.com/justinjw93/diseno_software) |
+| Ae2 (Semana 3) | Factory Method y Builder sobre ese diseño | [Ae2_Patrones](https://github.com/justinjw93/Ae2_Patrones) |
+| **Ae3 (Semana 4)** | **Strategy, Observer, Adapter y Facade** | este repositorio |
 
 ## Propósito
 
-Implementar y comparar **Factory Method** y **Builder** sobre problemas concretos del Sistema de gestión de tutorías, justificando qué problema resuelve cada patrón, cómo se representa en UML y cómo se traduce a Java.
+Gestionar las tutorías académicas entre estudiantes y docentes: publicar horarios, reservarlos, confirmarlos, cancelarlos y reprogramarlos, manteniendo consistente la disponibilidad de cada bloque y avisando a quien corresponda.
 
-Este repositorio parte del modelo orientado a objetos entregado en Ae1 (Semana 2) y conserva su historial: los patrones se aplican **sobre** ese diseño, no lo reemplazan.
+El objetivo de diseño es que las **responsabilidades, dependencias y puntos de variación** del sistema sean explícitos y controlables: cada regla que cambia por razones distintas vive en un lugar distinto.
 
-## Problemas que resuelve cada patrón
+## Problema y alcance del incremento
 
-| Patrón | Problema del código anterior | Solución |
-|---|---|---|
-| **Factory Method** | `App` elegía el canal escribiendo `new NotificadorConsola()`: el cliente quedaba amarrado a una clase concreta y la configuración propia de cada canal (remitente, número de origen, límite de caracteres) se filtraba hacia él. | Jerarquía `CreadorNotificador` → cada ConcreteCreator decide qué `Notificador` construir y con qué configuración. |
-| **Builder** | Al registrar modalidad, motivo, enlace, observaciones y recordatorio, `Reserva` pasó de 4 a 9 datos: constructores telescópicos, tres `String` consecutivos intercambiables sin error de compilación, `null` obligatorios y ningún punto único de validación. | `ReservaBuilder` con Fluent API, valores por defecto y `validar()` como única puerta de construcción. |
+El incremento parte de un proyecto que ya compilaba (20 pruebas verdes) y ataca **cuatro problemas reales** encontrados en ese código, no ejercicios de patrones.
 
-Desarrollo completo, con código, UML y tabla comparativa, en **[`docs/patrones.md`](docs/patrones.md)**.
+| # | Problema observado en la línea base | Dónde | Patrón |
+|---|---|---|---|
+| 1 | La notificación estaba cableada en los cuatro casos de uso del servicio: agregar un receptor obligaba a editarlos todos | `service/ServicioReservas.java` | **Observer** |
+| 2 | La regla de cancelación estaba congelada en el dominio: no admitía anticipación, penalidad ni origen de la solicitud | `domain/Reserva.java` | **Strategy** |
+| 3 | El enlace de la tutoría virtual era un `String` escrito a mano; ningún proveedor reservaba la sala | `App.java` | **Adapter** |
+| 4 | El cliente conocía y ordenaba seis colaboradores para crear una tutoría | `App.java` | **Facade** |
 
-## Parte A · Factory Method
+**Fuera de alcance:** persistencia real (los repositorios siguen en memoria), autenticación, y la integración de red con los proveedores de videoconferencia, que se simula con SDKs locales de firma incompatible.
 
-| Rol GoF | Clases |
+El análisis completo, con la plantilla de justificación de cada patrón, está en **[`docs/incremento1.md`](docs/incremento1.md)**.
+
+## Clases y componentes principales
+
+| Componente | Rol |
 |---|---|
-| Product | `Notificador` |
-| ConcreteProduct | `NotificadorConsola`, `NotificadorLog`, `NotificadorCorreo`, `NotificadorSms` |
-| Creator | `CreadorNotificador` (abstracta) |
-| ConcreteCreator | `CreadorNotificadorConsola`, `CreadorNotificadorLog`, `CreadorNotificadorCorreo`, `CreadorNotificadorSms` |
-| Client | `App` |
+| `GestionTutorias` | Fachada: única puerta de entrada a los casos de uso |
+| `ServicioReservas` | Orquesta los casos de uso; Context de la Strategy |
+| `Reserva`, `HorarioTutoria` | Dueñas de su propio estado y de sus transiciones |
+| `ReservaBuilder` | Única puerta de construcción de una reserva, con validación en un solo punto |
+| `PoliticaCancelacion` + 3 implementaciones | Reglas de cancelación intercambiables |
+| `PublicadorReservas` + `ObservadorReserva` + 3 implementaciones | Publicación y consumo de los hechos de una reserva |
+| `ProveedorVideoconferencia` + 2 adaptadores | Contrato propio de videoconferencia, aislado de cada SDK |
+| `CreadorNotificador` / `Notificador` | Jerarquías Creator/Product del Factory Method |
+| `RepositorioReservas`, `RepositorioHorarios` | Abstracciones de persistencia |
 
-El Creator declara la operación de fábrica `crearNotificador()` y define sobre ella la operación estable `enviarNotificacion(...)`, que identifica el canal y delega el envío al producto.
+## Patrones utilizados y justificación
 
-**Evidencia de extensibilidad:** el canal SMS se agregó después de tener el patrón funcionando y su commit (`feat: agregar nueva variante de notificacion`) contiene únicamente archivos nuevos. No cambió el contrato, ni el Creator, ni los creadores previos, ni `ServicioReservas`.
+### Se mantienen de Ae2
 
-## Parte B · Builder
+| Patrón | Problema que resuelve | ¿Se mantiene? | Justificación |
+|---|---|---|---|
+| **Factory Method** | El cliente escribía `new NotificadorConsola()` y la configuración de cada canal se filtraba hacia él | **Sí** | El punto de variación sigue vivo y el patrón **ganó un consumidor**: `ObservadorNotificacion` no instancia canales, se los pide al `CreadorNotificador` |
+| **Builder** | `Reserva` pasó de 4 a 9 datos: constructores telescópicos y ninguna validación única | **Sí** | La fachada construye a través del builder, así que la validación cruzada (VIRTUAL exige enlace) sigue ocurriendo en un solo lugar |
 
-- **Obligatorios:** `estudiante`, `horario`.
-- **Con valor por defecto:** `id` (UUID), `fechaCreacion` (`now()`), `modalidad` (`PRESENCIAL`), `motivo` (`"Tutoria general"`), `recordatorioMinutosAntes` (`60`).
-- **Opcionales sin defecto:** `enlaceVirtual`, `observaciones`.
+### Incorporados en Ae3
 
-```java
-Reserva reserva = new ReservaBuilder()
-        .conEstudiante(estudiante)
-        .conHorario(horario)
-        .virtualCon("https://meet.uees.edu.ec/tutoria-h003")
-        .conMotivo("Consulta sobre normalizacion")
-        .conRecordatorioDe(30)
-        .construir();
-```
+| Patrón | Problema real | Qué cambia | Qué permanece estable | Costo asumido |
+|---|---|---|---|---|
+| **Strategy** | La regla de cancelación estaba congelada dentro de `Reserva.cancelar()` | El criterio de aceptación y el cálculo de la penalidad | La transición `→ CANCELADA` y la liberación del horario, que siguen en `Reserva` | Tres clases más y una dependencia adicional en el servicio |
+| **Observer** | El servicio decidía y redactaba la notificación en sus cuatro casos de uso | La lista de interesados y su reacción | Los casos de uso del servicio y el evento publicado | Indirección: leyendo `cancelarReserva` ya no se ve el correo saliendo |
+| **Adapter** | La API del proveedor no coincide con el contrato (mapa de parámetros, epoch millis, duración en segundos) | El proveedor externo y su formato | `ProveedorVideoconferencia` y `SalaVirtual` | Una clase de traducción por proveedor; se pierden las funciones exclusivas del SDK |
+| **Facade** | Crear una tutoría virtual exigía conocer y ordenar seis colaboradores | El orden y la cantidad de pasos internos | La operación `crearTutoriaVirtual(...)` | Riesgo de clase Dios, evitado: la fachada **solo coordina**, no decide reglas |
 
-`Reserva` quedó con un solo constructor, que recibe el builder y vuelve a invocar `validar()` antes de copiar los datos: no existe forma de crear una reserva incompleta o incoherente. El horario se ocupa después de validar, de modo que una construcción rechazada no deja el bloque bloqueado.
+## Principios SOLID relevantes
+
+| Principio | Dónde se aplica en este incremento |
+|---|---|
+| **SRP** | `Reserva` conserva su transición de estado; la política institucional vive en `policy/`. La fachada coordina, el servicio orquesta y el dominio protege sus reglas |
+| **OCP** | Una política de cancelación nueva o un receptor de eventos nuevo son **clases nuevas**: ni `ServicioReservas` ni `Reserva` se modifican |
+| **LSP** | Los tres ConcreteStrategy son intercambiables sin que el Context cambie; los dos adaptadores también. Las pruebas recorren listas del tipo abstracto sin mencionar clases concretas |
+| **ISP** | `ProveedorVideoconferencia` expone solo lo que el sistema necesita —reservar una sala— y no el catálogo del SDK (grabaciones, encuestas, salas de espera) |
+| **DIP** | El servicio depende de `PublicadorReservas`, `PoliticaCancelacion` y los repositorios; la fachada depende de `ProveedorVideoconferencia`, nunca de `ZoomMeetingApi` |
+
+**Cohesión y acoplamiento.** El incremento **bajó** el acoplamiento del servicio: dejó de depender de `Notificador` (mensajería) y ganó una dependencia hacia una abstracción de publicación que no le impone receptores. Y subió la cohesión de `Reserva`, que volvió a ocuparse solo de su ciclo de vida.
 
 ## Diagramas UML
 
+Generados con **PlantUML** (previsualizables y exportables con el plugin *PlantUML integration* de IntelliJ IDEA).
+
 | Diagrama | Fuente |
 |---|---|
-| ![Factory Method](docs/factory-method.png) | [`docs/factory-method.puml`](docs/factory-method.puml) |
-| ![Builder](docs/builder.png) | [`docs/builder.puml`](docs/builder.puml) |
-| ![Modelo general](docs/modelo-clases.png) | [`docs/modelo-clases.puml`](docs/modelo-clases.puml) |
+| ![Incremento 1](docs/uml-incremento1.png) | [`docs/uml-incremento1.puml`](docs/uml-incremento1.puml) — **diagrama general del incremento** |
+| ![Strategy](docs/strategy-cancelacion.png) | [`docs/strategy-cancelacion.puml`](docs/strategy-cancelacion.puml) |
+| ![Observer](docs/observer-reservas.png) | [`docs/observer-reservas.puml`](docs/observer-reservas.puml) |
+| ![Adapter](docs/adapter-videoconferencia.png) | [`docs/adapter-videoconferencia.puml`](docs/adapter-videoconferencia.puml) |
+| ![Facade](docs/facade-tutorias.png) | [`docs/facade-tutorias.puml`](docs/facade-tutorias.puml) |
+| ![Factory Method](docs/factory-method.png) | [`docs/factory-method.puml`](docs/factory-method.puml) — Ae2 |
+| ![Builder](docs/builder.png) | [`docs/builder.puml`](docs/builder.puml) — Ae2 |
+| ![Estado inicial](docs/modelo-clases.png) | [`docs/modelo-clases.puml`](docs/modelo-clases.puml) — modelo al **iniciar** el incremento |
 
 ## Requisitos
 
@@ -73,39 +104,55 @@ mvn clean test
 mvn compile exec:java -Dexec.mainClass="edu.uees.tutorias.App"
 ```
 
-`App` ejecuta el flujo de reserva heredado de Ae1 y, a continuación, las dos demostraciones de la actividad: el mismo aviso enviado por cada canal a través de sus ConcreteCreators, y las dos configuraciones de `Reserva` construidas con el builder.
+Verificación de esta entrega:
 
-## Estructura del proyecto
+```text
+Tests run: 52, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
+
+`App` es el composition root y demuestra los seis patrones en orden: la fachada creando una tutoría virtual completa, los tres observadores reaccionando al mismo hecho, las tres políticas de cancelación sobre el mismo escenario, los dos proveedores de videoconferencia tras el mismo contrato y los canales del Factory Method.
+
+## Estructura de paquetes
 
 ```text
 semana4-patrones/
 ├── README.md
 ├── pom.xml
 ├── docs/
-│   ├── analisis.md            # análisis de dominio, cohesión/acoplamiento y SOLID (Ae1)
-│   ├── patrones.md            # problemas, solución y comparación de patrones (Ae3)
+│   ├── analisis.md                    # análisis de dominio y SOLID (Ae1)
+│   ├── patrones.md                    # Factory Method y Builder (Ae2)
+│   ├── incremento1.md                 # informe del incremento (Ae3)
+│   ├── uml-incremento1.puml / .png    # diagrama general del incremento
+│   ├── strategy-cancelacion.puml / .png
+│   ├── observer-reservas.puml / .png
+│   ├── adapter-videoconferencia.puml / .png
+│   ├── facade-tutorias.puml / .png
 │   ├── factory-method.puml / .png
 │   ├── builder.puml / .png
-│   └── modelo-clases.puml / .png
+│   └── modelo-clases.puml / .png      # estado inicial del incremento
 └── src/
     ├── main/java/edu/uees/tutorias/
-    │   ├── App.java
-    │   ├── builder/           # ReservaBuilder
-    │   ├── factory/           # CreadorNotificador y ConcreteCreators
-    │   ├── domain/
-    │   ├── service/
-    │   ├── persistence/
-    │   └── notification/      # Notificador y ConcreteProducts
+    │   ├── App.java                   # composition root
+    │   ├── facade/                    # GestionTutorias                (Facade, Ae3)
+    │   ├── service/                   # ServicioReservas               (Context)
+    │   ├── policy/                    # PoliticaCancelacion + 3        (Strategy, Ae3)
+    │   ├── event/                     # Publicador, Observador + 3     (Observer, Ae3)
+    │   ├── video/                     # ProveedorVideoconferencia + 2  (Adapter, Ae3)
+    │   │   └── external/              # SDKs simulados de terceros     (Adaptees)
+    │   ├── builder/                   # ReservaBuilder                 (Builder, Ae2)
+    │   ├── factory/                   # CreadorNotificador + 4         (Factory Method, Ae2)
+    │   ├── notification/              # Notificador + 4                (Products, Ae2)
+    │   ├── domain/                    # Reserva, HorarioTutoria, ...   (Ae1)
+    │   └── persistence/               # repositorios                   (Ae1)
     └── test/java/edu/uees/tutorias/
-        ├── builder/
-        ├── factory/
-        └── service/
+        └── facade/ event/ policy/ video/ builder/ factory/ service/
 ```
 
-## Continuidad con Ae1
+## Continuidad con Ae1 y Ae2
 
-El diseño de la semana anterior (clases, responsabilidades, cohesión/acoplamiento y principios SOLID) está documentado en [`docs/analisis.md`](docs/analisis.md) y sigue vigente. Los patrones se apoyaron en él: el Factory Method encontró su lugar porque `Notificador` ya era una interfaz, y el Builder porque `Reserva` ya protegía su propio estado. Ninguno obligó a modificar `ServicioReservas`, los repositorios ni las reglas de transición de estado.
+El diseño de Ae1 ([`docs/analisis.md`](docs/analisis.md)) sigue vigente y es el que hizo baratos estos cuatro cambios: el Observer encontró su lugar porque el servicio ya recibía sus colaboraciones por interfaz, el Strategy porque `Reserva` ya protegía su propio estado, y el Adapter porque la inversión de dependencias ya era la norma del proyecto. Ninguno de los cuatro patrones obligó a modificar los repositorios ni las reglas de transición de estado.
 
 ## Declaración de uso de inteligencia artificial
 
-Para esta actividad utilicé herramientas de inteligencia artificial. Me apoyé en el modelo Claude para agilizar la organización del caso, la generación preliminar del código en Java, el diseño de los diagramas UML y la documentación técnica. Revisé, probé y adapté el contenido generado: todo el código fue inspeccionado y verificado mediante compilación y ejecución de pruebas con Maven y JDK 21, y puedo explicar y justificar el código y las decisiones de diseño presentadas.
+Para esta actividad utilicé herramientas de inteligencia artificial. Me apoyé en el modelo Claude para agilizar el análisis de los problemas de diseño, la generación preliminar del código en Java, el diseño de los diagramas UML y la documentación técnica. Revisé, probé y adapté el contenido generado: todo el código fue inspeccionado y verificado mediante compilación y ejecución de pruebas con Maven y JDK 21, y puedo explicar y justificar el código y las decisiones de diseño presentadas.

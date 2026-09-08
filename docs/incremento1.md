@@ -183,4 +183,286 @@ El historial de Git sigue estas fases, un commit por fase.
 | 6 | UML del incremento | `docs: actualizar UML del incremento 1` |
 | 7 | README y decisiones de diseño | `docs: actualizar README y decisiones de diseno` |
 
-Las secciones 5 a 9 (UML, evidencia de código, verificación final, conclusiones y declaración de IA) se completan al cerrar el incremento.
+Cada fase compila y pasa las pruebas por si sola antes de commitear (Paso 7 de la actividad).
+
+---
+
+## 5. Diseño OO, cohesión, acoplamiento y SOLID
+
+### 5.1 Cómo cambió el acoplamiento
+
+| Clase | Dependencias antes del incremento | Dependencias después |
+|---|---|---|
+| `ServicioReservas` | `RepositorioReservas`, `RepositorioHorarios`, **`Notificador`** | `RepositorioReservas`, `RepositorioHorarios`, **`PublicadorReservas`**, **`PoliticaCancelacion`** |
+| `Reserva` | `ReservaBuilder`, `HorarioTutoria`, enums | sin cambios |
+| `App` | 8 clases concretas y el orden de sus llamadas | `GestionTutorias` + el cableado del composition root |
+
+El servicio ganó una dependencia (la política) y perdió otra (el notificador), pero el cambio importante no es el número: es la **naturaleza**. Antes dependía de un mecanismo de mensajería y sabía redactar correos; ahora depende de una abstracción de publicación que no le impone receptores. El acoplamiento pasó de *contenido* a *datos*.
+
+### 5.2 Cómo cambió la cohesión
+
+`Reserva` volvió a tener una sola razón para cambiar: su ciclo de vida. La regla institucional —anticipación exigida, penalidad, quién origina la cancelación— cambia por normativa universitaria, no por diseño de software, y por eso vive en `policy/`.
+
+`ServicioReservas` recuperó su papel de orquestador: los cuatro casos de uso hoy caben en tres o cuatro líneas cada uno, porque ya no redactan mensajes ni evalúan reglas de negocio.
+
+### 5.3 SOLID en el incremento
+
+| Principio | Evidencia concreta |
+|---|---|
+| **SRP** | `Reserva.cancelar()` ejecuta la transición; `PoliticaCancelacion.evaluar()` emite el veredicto. Dos motivos de cambio, dos clases |
+| **OCP** | `ObservadorBitacora` y `ObservadorAgendaDocente` se agregaron **sin tocar** `ServicioReservas`. Lo mismo vale para `PoliticaCancelacionDocente` |
+| **LSP** | `AdaptadorVideoconferenciaTest.dosProveedoresDistintosSeConsumenPorLaMismaInterfaz` recorre `List<ProveedorVideoconferencia>` sin mencionar clases concretas y ambas se comportan según el contrato |
+| **ISP** | `ProveedorVideoconferencia` declara dos métodos, no el catálogo del SDK. El contrato lo dicta el consumidor |
+| **DIP** | Ninguna clase fuera de `video/` importa `ZoomMeetingApi`. La fachada depende del Target, no del Adaptee |
+
+### 5.4 El límite que evita la clase Dios
+
+La actividad advierte contra las clases Dios y contra los patrones decorativos. `GestionTutorias` es la candidata natural a convertirse en una, así que se le puso un límite explícito y verificable:
+
+- **no valida** la reserva → lo hace `ReservaBuilder.validar()`;
+- **no decide** si una cancelación procede → lo hace la `PoliticaCancelacion`;
+- **no elige** quién se entera → lo hace `PublicadorReservas`;
+- **no habla** el dialecto de ningún proveedor → lo hace el `AdaptadorZoom`.
+
+La fachada solo encadena llamadas, y el subsistema sigue siendo accesible por separado: `GestionTutoriasTest` construye el servicio directamente, sin pasar por ella.
+
+---
+
+## 6. UML actualizado
+
+| Diagrama | Archivo | Qué muestra |
+|---|---|---|
+| **General del incremento** | `docs/uml-incremento1.puml` / `.png` | Las cuatro capas, los seis patrones, con generalización, realización de interfaces, dependencias, asociaciones y multiplicidades. La leyenda distingue qué vino de Ae1, Ae2 y Ae3 |
+| Strategy | `docs/strategy-cancelacion.puml` / `.png` | Context, Strategy, tres ConcreteStrategies y la frontera con `Reserva` |
+| Observer | `docs/observer-reservas.puml` / `.png` | Subject, Observer, tres ConcreteObservers y el puente hacia el Factory Method de Ae2 |
+| Adapter | `docs/adapter-videoconferencia.puml` / `.png` | Target, dos Adapters y dos Adaptees marcados como código de terceros |
+| Facade | `docs/facade-tutorias.puml` / `.png` | La fachada y el subsistema que coordina |
+| Estado inicial | `docs/modelo-clases.puml` / `.png` | El modelo **antes** del incremento, para comparar |
+
+Los diagramas se escriben en PlantUML y se previsualizan y exportan con el plugin *PlantUML integration* de IntelliJ IDEA.
+
+**Coherencia UML–Java.** Cada clase e interfaz del diagrama existe en el código con ese nombre exacto y en ese paquete, y cada relación del diagrama corresponde a un campo, un parámetro de constructor o un `implements` real. Los estereotipos (`<<Strategy>>`, `<<Adaptee>>`, `<<ConcreteObserver>>`) coinciden con los roles GoF documentados en el javadoc de cada clase.
+
+---
+
+## 7. Evidencia de código
+
+### 7.1 Strategy — el Context consulta antes de actuar
+
+```java
+// ServicioReservas.java
+public ResultadoCancelacion cancelarReserva(String idReserva,
+                                            PoliticaCancelacion politica,
+                                            LocalDateTime momentoSolicitud) {
+    Reserva reserva = obtenerReserva(idReserva);
+
+    ResultadoCancelacion resultado = politica.evaluar(reserva, momentoSolicitud);
+    if (!resultado.permitida()) {
+        throw new IllegalStateException("La reserva " + reserva.getId()
+                + " no puede cancelarse. " + resultado.motivo());
+    }
+
+    reserva.cancelar();                                     // la transicion sigue en el dominio
+    publicador.publicar(new EventoReserva(TipoEventoReserva.CANCELADA, reserva,
+            momentoSolicitud, politica.nombre() + ": " + resultado.motivo()));
+    return resultado;
+}
+```
+
+El servicio no contiene ni una regla de anticipación ni de penalidad: solo sabe que hay una política a la que consultar. `momentoSolicitud` se recibe como parámetro —y no se lee de `now()`— para que las reglas sean reproducibles en pruebas.
+
+### 7.2 Observer — el hecho, no la orden
+
+```java
+// ServicioReservas.java
+public void confirmarReserva(String idReserva) {
+    Reserva reserva = obtenerReserva(idReserva);
+    reserva.confirmar();
+    publicador.publicar(EventoReserva.de(TipoEventoReserva.CONFIRMADA, reserva,
+            "Confirmada para el " + reserva.getHorario().inicio()));
+}
+```
+
+Comparado con la línea base, desaparecieron el destinatario, el asunto y el cuerpo del mensaje. El servicio anuncia *"la reserva se confirmó"*, no *"envía un correo"*.
+
+El `PublicadorReservas` aísla el fallo de cada receptor, porque el hecho ya ocurrió:
+
+```java
+// PublicadorReservas.java
+for (ObservadorReserva observador : List.copyOf(observadores)) {
+    try {
+        observador.alOcurrir(evento);
+    } catch (RuntimeException fallo) {
+        fallos.add(observador.nombre() + " fallo ante " + evento.tipo() + ": " + fallo.getMessage());
+    }
+}
+```
+
+### 7.3 El punto donde se encuentran Ae2 y Ae3
+
+```java
+// ObservadorNotificacion.java
+public class ObservadorNotificacion implements ObservadorReserva {
+
+    private final CreadorNotificador creadorNotificador;   // Factory Method de Ae2
+    ...
+    case CONFIRMADA -> creadorNotificador.enviarNotificacion(
+            evento.correoEstudiante(), "Tutoria confirmada",
+            "Tu reserva " + evento.reserva().getId() + " fue confirmada.");
+}
+```
+
+Este observador no escribe `new NotificadorCorreo()`. Le pide el canal al Creator del incremento anterior, y por eso el Factory Method **se mantiene**: perdió un consumidor (el servicio) y ganó otro.
+
+### 7.4 Adapter — toda la incompatibilidad, en un solo archivo
+
+```java
+// AdaptadorZoom.java
+Map<String, Object> parametros = new LinkedHashMap<>();
+parametros.put("topic", titulo);
+parametros.put("start_time", inicio.atZone(zona).toInstant().toEpochMilli());  // fecha local -> epoch UTC
+parametros.put("duration", duracionMinutos * SEGUNDOS_POR_MINUTO);            // minutos -> segundos
+
+String respuesta = api.scheduleMeeting(parametros);        // "meeting_id=...;join_url=...;passcode=..."
+
+Map<String, String> campos = descomponer(respuesta);
+return new SalaVirtual(campos.getOrDefault("join_url", ""),
+                       campos.getOrDefault("passcode", ""), nombre());
+```
+
+Se usa **object adapter** (composición) y no class adapter (herencia) por dos razones: el SDK es código de terceros que no conviene extender, y la composición permite sustituirlo por un doble en las pruebas.
+
+### 7.5 Facade — la intención, no el procedimiento
+
+```java
+// GestionTutorias.java
+public Reserva crearTutoriaVirtual(Estudiante estudiante, String idHorario, String motivo) {
+    HorarioTutoria horario = obtenerHorario(idHorario);
+
+    SalaVirtual sala = proveedorVideoconferencia.crearSala(
+            tituloDe(horario, motivo), horario.inicio(), horario.duracionEnMinutos());
+
+    ReservaBuilder builder = new ReservaBuilder()
+            .conEstudiante(estudiante)
+            .virtualCon(sala.url())
+            .conMotivo(motivo);
+
+    if (sala.exigeCodigo()) {
+        builder.conObservaciones("Codigo de acceso " + sala.codigoAcceso() + " (" + sala.proveedor() + ")");
+    }
+
+    return servicioReservas.crearReserva(builder, idHorario);
+}
+```
+
+Del lado del cliente, esos seis pasos son una línea:
+
+```java
+Reserva tutoria = gestionTutorias.crearTutoriaVirtual(estudiante, "H002", "Consulta sobre normalizacion");
+```
+
+---
+
+## 8. Verificación
+
+### 8.1 Compilación y pruebas
+
+```text
+$ mvn clean test
+
+[INFO] Tests run:  9 -- edu.uees.tutorias.builder.ReservaBuilderTest
+[INFO] Tests run:  7 -- edu.uees.tutorias.event.PublicadorReservasTest
+[INFO] Tests run:  7 -- edu.uees.tutorias.facade.GestionTutoriasTest
+[INFO] Tests run:  2 -- edu.uees.tutorias.factory.CreadorNotificadorSmsTest
+[INFO] Tests run:  3 -- edu.uees.tutorias.factory.CreadorNotificadorTest
+[INFO] Tests run:  8 -- edu.uees.tutorias.policy.PoliticaCancelacionTest
+[INFO] Tests run: 11 -- edu.uees.tutorias.service.ServicioReservasTest
+[INFO] Tests run:  5 -- edu.uees.tutorias.video.AdaptadorVideoconferenciaTest
+[INFO] Tests run: 52, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+```
+
+De 20 pruebas en la línea base a **52** al cerrar el incremento. 45 clases de producción y 8 de prueba.
+
+### 8.2 Cómo se verificó cada patrón
+
+| Patrón | Prueba que lo demuestra | Qué comprueba |
+|---|---|---|
+| **Strategy** | `elMismoEscenarioProduceVeredictosDistintosSegunLaEstrategia` | El mismo escenario tardío produce tres veredictos distintos; lo único que cambia es la estrategia |
+| **Strategy** | `cancelarComoDocenteNoPenalizaAunqueSeaTarde` | Cambiar la estrategia en la llamada cambia el resultado sin tocar `ServicioReservas` ni `Reserva` |
+| **Observer** | `cadaCasoDeUsoPublicaUnEventoATodosLosObservadores` | Un hecho por caso de uso, idéntico para todos los registrados |
+| **Observer** | `elFalloDeUnObservadorNoImpideQueLosDemasReaccionen` | Un canal caído no impide que la bitácora registre |
+| **Observer + Factory** | `elObservadorDeNotificacionPideElCanalAlFactoryMethod` | El observador no instancia canales |
+| **Adapter** | `elAdaptadorTraduceMinutosASegundosYFechaLocalAEpochUtc` | La traducción real que llega al SDK: 60 min → 3600 s, `LocalDateTime` → epoch millis |
+| **Adapter** | `dosProveedoresDistintosSeConsumenPorLaMismaInterfaz` | Dos APIs incompatibles, un solo código cliente |
+| **Facade** | `unaSolaLlamadaCreaLaTutoriaVirtualCompleta` | Reserva guardada, horario ocupado y enlace emitido en una llamada |
+| **Facade** | `cambiarDeProveedorNoCambiaLaOperacionDeAltoNivel` | Sustituir Zoom por Meet no cambia el cliente |
+| **Facade** | `laTutoriaPresencialNoPideSalaAlProveedor` | La fachada no llama al proveedor cuando no corresponde |
+
+### 8.3 Ejecución de la aplicación
+
+`mvn compile exec:java -Dexec.mainClass="edu.uees.tutorias.App"` recorre los seis patrones. Extracto:
+
+```text
+### Facade: una operacion de alto nivel ###
+Proveedor de videoconferencia: Zoom
+  Modalidad: VIRTUAL
+  Enlace emitido por el proveedor: https://uees.zoom.us/j/2705291540
+  Observaciones: Codigo de acceso R0B3K8 (Zoom)
+
+### Observer: un hecho, varios receptores ###
+Observadores registrados: 3
+Asientos en bitacora: 3
+Agenda del docente tras la cancelacion: []
+
+### Strategy: tres reglas de cancelacion ###
+- Anticipada    -> Fuera de plazo: la cancelacion exige 24 h de anticipacion y solo faltan 2 h.
+- Con penalidad -> Cancelacion tardia: quedan 2 h y se aplica 50 % de penalidad.
+- Del docente   -> Sin penalidad para el estudiante: cancelacion administrativa del docente.
+
+### Adapter: dos proveedores, un solo contrato ###
+- Zoom: https://uees.zoom.us/j/3033649459 (codigo O3GQRR, Zoom)
+- Meet institucional: https://meet.uees.edu.ec/tutoria-13895a46 (Meet institucional)
+```
+
+---
+
+## 9. Git/GitHub
+
+**Repositorio:** https://github.com/justinjw93/Ae3_Patrones
+
+El historial evidencia evolución progresiva: el incremento no llegó en un solo commit, y cada fase compila y pasa las pruebas por sí sola.
+
+| Commit | Fase |
+|---|---|
+| `docs: registrar linea base y problemas de diseno del incremento 1` | Línea base verificada y análisis |
+| `feat: aplicar strategy a las politicas de cancelacion` | Patrón 1 |
+| `feat: notificar cambios de reserva con observer` | Patrón 2 |
+| `feat: integrar proveedor de videoconferencia con adapter` | Patrón 3 |
+| `feat: exponer el flujo de tutoria virtual con facade` | Patrón 4 |
+| `docs: actualizar UML del incremento 1` | Diagramas |
+| `docs: actualizar README y decisiones de diseno del incremento 1` | Documentación final |
+
+Antes de estos, el repositorio conserva el historial completo de Ae1 y Ae2: el incremento se apoya sobre ese trabajo en lugar de reemplazarlo.
+
+---
+
+## 10. Conclusiones
+
+**Los patrones se eligieron desde el problema, no desde la lista.** Los cuatro salieron de leer el código de la línea base: la notificación cableada en `ServicioReservas`, la regla congelada en `Reserva.cancelar()`, el enlace escrito a mano en `App` y el procedimiento de seis pasos que el cliente debía ordenar. Cada uno responde a una de las preguntas de selección de la actividad, y ninguno se agregó para completar un cupo.
+
+**Los patrones se componen, no compiten.** El resultado más interesante del incremento es que el Factory Method de Ae2 no se retiró: cambió de consumidor. Antes lo usaba `App`, ahora lo usa `ObservadorNotificacion`. Del mismo modo, el Adapter le da sentido al Facade —sin proveedor externo, la fachada sería una envoltura fina— y la Strategy le da a la fachada algo real que elegir en `cancelarPorDocente`. Un patrón aislado se justifica peor que uno que encaja con los demás.
+
+**El diseño previo fue lo que abarató los cambios.** Ninguno de los cuatro obligó a tocar los repositorios ni las reglas de transición de estado. El Observer encontró su lugar porque el servicio ya recibía colaboraciones por interfaz; el Strategy, porque `Reserva` ya protegía su estado; el Adapter, porque la inversión de dependencias ya era la norma. La inversión hecha en Ae1 se cobró aquí.
+
+**Lo que costó.** Cuatro paquetes nuevos y 19 clases más. El costo real no es el número de archivos sino la indirección: leyendo `cancelarReserva` ya no se ve el correo salir, y hay que saber dónde se registran los observadores. Se compensó con dos decisiones: el composition root de `App` muestra explícitamente qué se registra y qué política rige, y cada clase documenta en su javadoc qué problema resuelve y qué rol GoF cumple.
+
+**Lo que aprendí.** Que la pregunta útil no es "¿qué patrón aplico?" sino "¿qué cambia por su propia cuenta en este sistema?". Los cuatro puntos de variación —el reglamento de cancelación, la lista de interesados, el proveedor de video y el orden de los pasos— existían antes de conocer los patrones; lo que los patrones aportaron fue un lugar donde ponerlos.
+
+---
+
+## 11. Declaración de uso de inteligencia artificial
+
+Para esta actividad utilicé herramientas de inteligencia artificial. Me apoyé en el modelo Claude para agilizar el análisis de los problemas de diseño de la línea base, la generación preliminar del código en Java, el diseño de los diagramas UML en PlantUML y la redacción de la documentación técnica.
+
+Revisé, probé y adapté todo el contenido generado: el código fue inspeccionado y verificado mediante compilación y ejecución de pruebas con Maven y JDK 21 (52 pruebas, `BUILD SUCCESS`), y puedo explicar y justificar cada decisión de diseño presentada en este informe, incluyendo por qué se mantuvieron los patrones de Ae2, por qué se eligió cada patrón nuevo desde un problema concreto del código, y qué costo asume el sistema por cada uno.
