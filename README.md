@@ -82,7 +82,9 @@ Generados con **PlantUML** (previsualizables y exportables con el plugin *PlantU
 
 | Diagrama | Fuente |
 |---|---|
-| ![Incremento 1](docs/uml-incremento1.png) | [`docs/uml-incremento1.puml`](docs/uml-incremento1.puml) — **diagrama general del incremento** |
+| ![Vista de dominio](docs/uml-incremento1-dominio.png) | [`docs/uml-incremento1-dominio.puml`](docs/uml-incremento1-dominio.puml) — **general · vista de dominio** |
+| ![Vista de patrones](docs/uml-incremento1-patrones.png) | [`docs/uml-incremento1-patrones.puml`](docs/uml-incremento1-patrones.puml) — **general · vista de patrones** |
+| ![Consolidado](docs/uml-incremento1.png) | [`docs/uml-incremento1.puml`](docs/uml-incremento1.puml) — las dos vistas en un solo diagrama |
 | ![Strategy](docs/strategy-cancelacion.png) | [`docs/strategy-cancelacion.puml`](docs/strategy-cancelacion.puml) |
 | ![Observer](docs/observer-reservas.png) | [`docs/observer-reservas.puml`](docs/observer-reservas.puml) |
 | ![Adapter](docs/adapter-videoconferencia.png) | [`docs/adapter-videoconferencia.puml`](docs/adapter-videoconferencia.puml) |
@@ -123,7 +125,9 @@ semana4-patrones/
 │   ├── analisis.md                    # análisis de dominio y SOLID (Ae1)
 │   ├── patrones.md                    # Factory Method y Builder (Ae2)
 │   ├── incremento1.md                 # informe del incremento (Ae3)
-│   ├── uml-incremento1.puml / .png    # diagrama general del incremento
+│   ├── uml-incremento1-dominio.puml / .png    # general · vista de dominio
+│   ├── uml-incremento1-patrones.puml / .png   # general · vista de patrones
+│   ├── uml-incremento1.puml / .png            # ambas vistas consolidadas
 │   ├── strategy-cancelacion.puml / .png
 │   ├── observer-reservas.puml / .png
 │   ├── adapter-videoconferencia.puml / .png

@@ -1,0 +1,200 @@
+@startuml uml-incremento1-patrones
+title Incremento 1 - Vista de patrones\nStrategy, Observer, Adapter y Facade de Ae3 sobre el Factory Method de Ae2
+
+skinparam classAttributeIconSize 0
+skinparam nodesep 25
+skinparam ranksep 45
+hide empty members
+
+' ===================== FACHADA Y SERVICIO =====================
+package "facade" {
+  class GestionTutorias <<Facade, Ae3>> {
+    + crearTutoriaVirtual(estudiante: Estudiante, idHorario: String, motivo: String) : Reserva
+    + cancelarPorEstudiante(idReserva: String) : ResultadoCancelacion
+    + cancelarPorDocente(idReserva: String, justificacion: String) : ResultadoCancelacion
+  }
+}
+
+package "service" {
+  class ServicioReservas <<Context>> {
+    + crearReserva(builder: ReservaBuilder, idHorario: String) : Reserva
+    + confirmarReserva(idReserva: String)
+    + cancelarReserva(idReserva: String, politica: PoliticaCancelacion, momento: LocalDateTime) : ResultadoCancelacion
+    + reprogramarReserva(idReserva: String, idNuevoHorario: String)
+  }
+}
+
+' ===================== STRATEGY (Ae3) =====================
+package "policy · Strategy" {
+  interface PoliticaCancelacion <<Strategy>> {
+    + evaluar(reserva: Reserva, momentoSolicitud: LocalDateTime) : ResultadoCancelacion
+    + nombre() : String
+  }
+  class PoliticaCancelacionAnticipada <<ConcreteStrategy>> {
+    - horasMinimas : int
+  }
+  class PoliticaCancelacionConPenalidad <<ConcreteStrategy>> {
+    - horasSinCosto : int
+    - penalidadPorcentaje : int
+  }
+  class PoliticaCancelacionDocente <<ConcreteStrategy>> {
+    - justificacion : String
+  }
+  class ResultadoCancelacion <<record>> {
+    + permitida : boolean
+    + penalidadPorcentaje : int
+    + motivo : String
+    + tienePenalidad() : boolean
+  }
+}
+
+' ===================== OBSERVER (Ae3) =====================
+package "event · Observer" {
+  class PublicadorReservas <<Subject>> {
+    - observadores : List<ObservadorReserva>
+    + registrar(o: ObservadorReserva)
+    + quitar(o: ObservadorReserva)
+    + publicar(evento: EventoReserva)
+  }
+  interface ObservadorReserva <<Observer>> {
+    + alOcurrir(evento: EventoReserva)
+    + nombre() : String
+  }
+  class ObservadorNotificacion <<ConcreteObserver>> {
+    - creadorNotificador : CreadorNotificador
+  }
+  class ObservadorBitacora <<ConcreteObserver>> {
+    - asientos : List<String>
+  }
+  class ObservadorAgendaDocente <<ConcreteObserver>> {
+    - agendaPorDocente : Map<String, Set<String>>
+  }
+  class EventoReserva <<record>> {
+    + tipo : TipoEventoReserva
+    + momento : LocalDateTime
+    + detalle : String
+    + correoEstudiante() : String
+    + correoDocente() : String
+  }
+  enum TipoEventoReserva {
+    CREADA
+    CONFIRMADA
+    CANCELADA
+    REPROGRAMADA
+  }
+}
+
+' ===================== FACTORY METHOD (Ae2) =====================
+package "factory + notification · Factory Method (Ae2)" {
+  abstract class CreadorNotificador <<Creator>> {
+    + {abstract} crearNotificador() : Notificador
+    + {abstract} nombreCanal() : String
+    + enviarNotificacion(destinatario: String, asunto: String, mensaje: String)
+  }
+  class CreadorNotificadorConsola <<ConcreteCreator>>
+  class CreadorNotificadorLog <<ConcreteCreator>>
+  class CreadorNotificadorCorreo <<ConcreteCreator>>
+  class CreadorNotificadorSms <<ConcreteCreator>>
+
+  interface Notificador <<Product>> {
+    + notificar(destinatario: String, asunto: String, mensaje: String)
+  }
+  class NotificadorConsola <<ConcreteProduct>>
+  class NotificadorLog <<ConcreteProduct>>
+  class NotificadorCorreo <<ConcreteProduct>>
+  class NotificadorSms <<ConcreteProduct>>
+}
+
+' ===================== ADAPTER (Ae3) =====================
+package "video · Adapter" {
+  interface ProveedorVideoconferencia <<Target>> {
+    + crearSala(titulo: String, inicio: LocalDateTime, duracionMinutos: int) : SalaVirtual
+    + nombre() : String
+  }
+  class AdaptadorZoom <<Adapter>> {
+    - api : ZoomMeetingApi
+    - zona : ZoneId
+  }
+  class AdaptadorMeetInstitucional <<Adapter>> {
+    - servicio : MeetInstitucionalService
+  }
+  class SalaVirtual <<record>> {
+    + url : String
+    + codigoAcceso : String
+    + proveedor : String
+  }
+}
+
+package "video.external · codigo de terceros" <<Frontera>> {
+  class ZoomMeetingApi <<Adaptee>> {
+    + scheduleMeeting(parametros: Map<String, Object>) : String
+  }
+  class MeetInstitucionalService <<Adaptee>> {
+    + reservar(asunto: String, fechaHoraIso: String, minutos: int) : SalaMeet
+  }
+}
+
+' ===================== DOMINIO (referencia) =====================
+package "domain · ver vista de dominio" <<Frontera>> {
+  class Reserva
+}
+
+' ===================== RELACIONES =====================
+' Facade
+GestionTutorias "1" o--> "1" ServicioReservas
+GestionTutorias "1" o--> "1" ProveedorVideoconferencia
+GestionTutorias ..> PoliticaCancelacion : elige segun el origen
+
+' Strategy
+ServicioReservas "1" o--> "1" PoliticaCancelacion : politica vigente >
+PoliticaCancelacionAnticipada ..|> PoliticaCancelacion
+PoliticaCancelacionConPenalidad ..|> PoliticaCancelacion
+PoliticaCancelacionDocente ..|> PoliticaCancelacion
+PoliticaCancelacion ..> ResultadoCancelacion : <<create>>
+PoliticaCancelacion ..> Reserva : consulta horario y estado
+
+' Observer
+ServicioReservas "1" o--> "1" PublicadorReservas : publica hechos >
+PublicadorReservas "1" o--> "0..*" ObservadorReserva : notifica >
+ObservadorNotificacion ..|> ObservadorReserva
+ObservadorBitacora ..|> ObservadorReserva
+ObservadorAgendaDocente ..|> ObservadorReserva
+PublicadorReservas ..> EventoReserva
+EventoReserva "1" --> "1" Reserva : afecta a >
+EventoReserva ..> TipoEventoReserva
+
+' Puente entre Ae2 y Ae3
+ObservadorNotificacion "1" o--> "1" CreadorNotificador : pide el canal al\nFactory Method de Ae2 >
+
+' Factory Method
+CreadorNotificadorConsola --|> CreadorNotificador
+CreadorNotificadorLog --|> CreadorNotificador
+CreadorNotificadorCorreo --|> CreadorNotificador
+CreadorNotificadorSms --|> CreadorNotificador
+CreadorNotificador ..> Notificador : <<create>>
+NotificadorConsola ..|> Notificador
+NotificadorLog ..|> Notificador
+NotificadorCorreo ..|> Notificador
+NotificadorSms ..|> Notificador
+
+' Adapter
+AdaptadorZoom ..|> ProveedorVideoconferencia
+AdaptadorMeetInstitucional ..|> ProveedorVideoconferencia
+AdaptadorZoom "1" o--> "1" ZoomMeetingApi : object adapter >
+AdaptadorMeetInstitucional "1" o--> "1" MeetInstitucionalService
+ProveedorVideoconferencia ..> SalaVirtual : <<create>>
+
+note bottom of GestionTutorias
+  La fachada SOLO coordina: no valida (Builder),
+  no decide si la cancelacion procede (Strategy),
+  no elige quien se entera (Observer) y no habla
+  el dialecto de ningun proveedor (Adapter).
+end note
+
+note right of ObservadorNotificacion
+  Punto de encuentro entre los dos incrementos:
+  el Observer consume el Factory Method de Ae2
+  en lugar de reemplazarlo.
+end note
+
+@enduml

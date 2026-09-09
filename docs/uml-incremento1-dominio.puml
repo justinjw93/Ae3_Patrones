@@ -1,0 +1,196 @@
+@startuml uml-incremento1-dominio
+title Incremento 1 - Vista de dominio\nModelo de Ae1, Builder de Ae2 y la fachada como unica puerta de entrada
+
+skinparam classAttributeIconSize 0
+skinparam nodesep 25
+skinparam ranksep 45
+hide empty members
+
+' ===================== CLIENTE Y FACHADA =====================
+class App <<Composition root>> {
+  + {static} main(args: String[])
+}
+
+package "facade" {
+  class GestionTutorias <<Facade, Ae3>> {
+    + crearTutoriaVirtual(estudiante: Estudiante, idHorario: String, motivo: String) : Reserva
+    + crearTutoriaPresencial(estudiante: Estudiante, idHorario: String, motivo: String) : Reserva
+    + confirmar(idReserva: String)
+    + cancelarPorEstudiante(idReserva: String) : ResultadoCancelacion
+    + cancelarPorDocente(idReserva: String, justificacion: String) : ResultadoCancelacion
+    + reprogramar(idReserva: String, idNuevoHorario: String)
+  }
+}
+
+' ===================== SERVICIO =====================
+package "service" {
+  class ServicioReservas <<Context>> {
+    + crearReserva(builder: ReservaBuilder, idHorario: String) : Reserva
+    + confirmarReserva(idReserva: String)
+    + cancelarReserva(idReserva: String, politica: PoliticaCancelacion, momento: LocalDateTime) : ResultadoCancelacion
+    + reprogramarReserva(idReserva: String, idNuevoHorario: String)
+  }
+}
+
+' ===================== BUILDER (Ae2) =====================
+package "builder" {
+  class ReservaBuilder <<Builder, Ae2>> {
+    + conEstudiante(e: Estudiante) : ReservaBuilder
+    + conHorario(h: HorarioTutoria) : ReservaBuilder
+    + virtualCon(enlace: String) : ReservaBuilder
+    + presencial() : ReservaBuilder
+    + conMotivo(m: String) : ReservaBuilder
+    + conObservaciones(o: String) : ReservaBuilder
+    + conRecordatorioDe(minutos: int) : ReservaBuilder
+    + validar()
+    + construir() : Reserva
+  }
+}
+
+' ===================== DOMINIO (Ae1) =====================
+package "domain" {
+  abstract class Usuario {
+    - id : String
+    - nombre : String
+    - apellido : String
+    - correo : String
+    + nombreCompleto() : String
+  }
+
+  class Estudiante {
+    - carrera : String
+    - semestre : int
+  }
+
+  class Docente {
+    - especialidad : String
+    + agregarAsignatura(a: Asignatura)
+  }
+
+  class Asignatura {
+    - codigo : String
+    - nombre : String
+  }
+
+  class HorarioTutoria {
+    - id : String
+    - fecha : LocalDate
+    - horaInicio : LocalTime
+    - horaFin : LocalTime
+    - estado : EstadoHorario
+    + estaDisponible() : boolean
+    + marcarReservado()
+    + liberar()
+    + inicio() : LocalDateTime
+    + duracionEnMinutos() : int
+  }
+
+  class Reserva {
+    - id : String
+    - fechaCreacion : LocalDateTime
+    - estado : EstadoReserva
+    - modalidad : ModalidadTutoria
+    - enlaceVirtual : String
+    - observaciones : String
+    - recordatorioMinutosAntes : int
+    + confirmar()
+    + cancelar()
+    + marcarRealizada()
+    + reprogramar(nuevoHorario: HorarioTutoria)
+  }
+
+  enum EstadoReserva {
+    PENDIENTE
+    CONFIRMADA
+    CANCELADA
+    REALIZADA
+  }
+
+  enum EstadoHorario {
+    DISPONIBLE
+    RESERVADO
+    INACTIVO
+  }
+
+  enum ModalidadTutoria {
+    PRESENCIAL
+    VIRTUAL
+  }
+}
+
+' ===================== PERSISTENCIA (Ae1) =====================
+package "persistence" {
+  interface RepositorioReservas {
+    + guardar(r: Reserva)
+    + buscarPorId(id: String) : Optional<Reserva>
+    + listarPorEstudiante(e: Estudiante) : List<Reserva>
+  }
+  interface RepositorioHorarios {
+    + guardar(h: HorarioTutoria)
+    + buscarPorId(id: String) : Optional<HorarioTutoria>
+    + listarDisponiblesPorDocente(d: Docente) : List<HorarioTutoria>
+  }
+  class RepositorioReservasEnMemoria
+  class RepositorioHorariosEnMemoria
+}
+
+' ============ COLABORACIONES DE LOS PATRONES DE Ae3 ============
+package "Ae3 · ver vista de patrones" <<Frontera>> {
+  interface ProveedorVideoconferencia <<Target>>
+  interface PoliticaCancelacion <<Strategy>>
+  class PublicadorReservas <<Subject>>
+}
+
+' ===================== RELACIONES =====================
+App ..> GestionTutorias : una sola puerta
+
+GestionTutorias "1" o--> "1" ServicioReservas
+GestionTutorias "1" o--> "1" RepositorioHorarios
+GestionTutorias "1" o--> "1" ProveedorVideoconferencia
+GestionTutorias ..> ReservaBuilder : <<create>>
+GestionTutorias ..> PoliticaCancelacion : elige segun el origen
+
+ServicioReservas "1" o--> "1" RepositorioReservas
+ServicioReservas "1" o--> "1" RepositorioHorarios
+ServicioReservas "1" o--> "1" PublicadorReservas
+ServicioReservas "1" o--> "1" PoliticaCancelacion
+ServicioReservas ..> ReservaBuilder
+
+' Herencia (Ae1)
+Estudiante --|> Usuario
+Docente --|> Usuario
+
+' Asociaciones del dominio (Ae1)
+Docente "1" --> "0..*" Asignatura : imparte >
+HorarioTutoria "0..*" --> "1" Docente : publicado por >
+HorarioTutoria "0..*" --> "1" Asignatura : sobre >
+Reserva "0..*" --> "1" Estudiante : solicitada por >
+Reserva "1" --> "1" HorarioTutoria : ocupa >
+Reserva ..> EstadoReserva
+Reserva ..> ModalidadTutoria
+HorarioTutoria ..> EstadoHorario
+
+' Builder (Ae2): unica puerta de construccion
+ReservaBuilder ..> Reserva : <<create>>
+ReservaBuilder ..> ModalidadTutoria
+
+' Persistencia (Ae1)
+RepositorioReservasEnMemoria ..|> RepositorioReservas
+RepositorioHorariosEnMemoria ..|> RepositorioHorarios
+RepositorioReservas ..> Reserva
+RepositorioHorarios ..> HorarioTutoria
+
+note right of ReservaBuilder
+  Ae2 se mantiene: Reserva tiene un solo
+  constructor y recibe un builder ya
+  validado. No existe forma de crear una
+  reserva incompleta o incoherente.
+end note
+
+note bottom of Reserva
+  Reserva y HorarioTutoria son duenas de su
+  propio estado: ninguna clase externa lo
+  cambia sin pasar por sus transiciones.
+end note
+
+@enduml

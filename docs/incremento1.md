@@ -232,12 +232,16 @@ La fachada solo encadena llamadas, y el subsistema sigue siendo accesible por se
 
 | Diagrama | Archivo | Qué muestra |
 |---|---|---|
-| **General del incremento** | `docs/uml-incremento1.puml` / `.png` | Las cuatro capas, los seis patrones, con generalización, realización de interfaces, dependencias, asociaciones y multiplicidades. La leyenda distingue qué vino de Ae1, Ae2 y Ae3 |
+| **General · vista de dominio** | `docs/uml-incremento1-dominio.puml` / `.png` | Modelo de Ae1 (herencia, asociaciones y multiplicidades), el Builder de Ae2 y la fachada como única puerta de entrada |
+| **General · vista de patrones** | `docs/uml-incremento1-patrones.puml` / `.png` | Los cuatro patrones de Ae3 sobre el Factory Method de Ae2, con roles GoF, realizaciones y dependencias |
+| General · consolidado | `docs/uml-incremento1.puml` / `.png` | Las dos vistas anteriores en un solo diagrama. Completo, pero solo legible con zoom: se conserva como referencia del modelo entero |
 | Strategy | `docs/strategy-cancelacion.puml` / `.png` | Context, Strategy, tres ConcreteStrategies y la frontera con `Reserva` |
 | Observer | `docs/observer-reservas.puml` / `.png` | Subject, Observer, tres ConcreteObservers y el puente hacia el Factory Method de Ae2 |
 | Adapter | `docs/adapter-videoconferencia.puml` / `.png` | Target, dos Adapters y dos Adaptees marcados como código de terceros |
 | Facade | `docs/facade-tutorias.puml` / `.png` | La fachada y el subsistema que coordina |
 | Estado inicial | `docs/modelo-clases.puml` / `.png` | El modelo **antes** del incremento, para comparar |
+
+El diagrama general se presenta en **dos vistas complementarias** —dominio y patrones— porque el consolidado reúne diez paquetes en paralelo y, con una proporción de 2,8:1, resulta ilegible impreso en una hoja A4. Las dos vistas cubren el mismo modelo sin solaparse: comparten `ServicioReservas` y `GestionTutorias` como costura, y cada una marca con el estereotipo `<<Frontera>>` las clases que detalla la otra.
 
 Los diagramas se escriben en PlantUML y se previsualizan y exportan con el plugin *PlantUML integration* de IntelliJ IDEA.
 
